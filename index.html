@@ -6,7 +6,7 @@
   <title>동대문구 쿨링 보행축 운전 현황</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
   <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/style.css?v=20261115">
 </head>
 <body>
   <header class="top">
@@ -15,9 +15,12 @@
         <p class="eyebrow">CRP2340 환경계획 · 2조</p>
         <h1>동대문구 소화전 연계 쿨링 보행축 운전 현황</h1>
       </div>
-      <div class="switch" role="tablist" aria-label="자료 선택">
-        <button id="tab-live" class="on" role="tab" aria-selected="true">실시간 S-DoT</button>
-        <button id="tab-replay" role="tab" aria-selected="false">2026년 여름 재생</button>
+      <div class="top-actions">
+        <div class="switch" role="tablist" aria-label="자료 선택">
+          <button id="tab-live" class="on" role="tab" aria-selected="true">실시간 S-DoT</button>
+          <button id="tab-replay" role="tab" aria-selected="false">2026년 여름 재생</button>
+        </div>
+        <a class="link-3d" href="3d.html">3D 비교 보기</a>
       </div>
     </div>
   </header>
@@ -33,10 +36,21 @@
           <div class="layers">
             <label><input type="checkbox" id="lyr-hyd"> 소화전</label>
             <label><input type="checkbox" id="lyr-shade" checked> 그늘막</label>
+            <label><input type="checkbox" id="lyr-tree"> 가로수</label>
             <label><input type="checkbox" id="lyr-sdot" checked> S-DoT</label>
             <label><input type="checkbox" id="lyr-pop"> 생활인구</label>
           </div>
         </div>
+        <div class="map-tools">
+          <div class="seg-btns" id="focus-btns">
+            <button data-c="all" class="on">전체</button>
+            <button data-c="C1">C1 왕산로</button>
+            <button data-c="C2">C2 전농로·사가정로</button>
+            <button data-c="C3">C3 회기로·이문로</button>
+          </div>
+          <button id="fire-btn" class="btn-ghost" title="지도를 눌러 출동 지점을 지정합니다">119 출동 가정</button>
+        </div>
+        <p id="fire-note" class="fire-note" hidden></p>
         <div id="map"></div>
         <div class="legend" id="legend"></div>
       </div>
@@ -49,6 +63,9 @@
           <label class="field grow">시각 <strong id="hour-label">14시</strong>
             <input type="range" id="hour" min="0" max="23" step="1" value="14">
           </label>
+          <div class="seg-btns" id="quick-hours">
+            <button data-h="9">09시</button><button data-h="14">14시</button><button data-h="19">19시</button>
+          </div>
           <button id="play" class="btn">재생</button>
         </div>
       </div>
@@ -65,6 +82,46 @@
           <div class="chart-box"><canvas id="chart-rh"></canvas></div>
         </div>
       </div>
+
+      <div class="card" id="fc-card">
+        <div class="card-head">
+          <div>
+            <h2>기상청 예보 기반 운전·물 사용 예측</h2>
+            <p class="muted" id="fc-stamp">기상청 단기예보(동대문구 격자 61, 127)를 같은 운전 규칙에 넣어 시간별 운전 방식을 미리 판정합니다.</p>
+          </div>
+        </div>
+        <div id="fc-strip" class="fc-strip"></div>
+        <div class="fc-legend" id="fc-legend"></div>
+        <table class="mini fc-table">
+          <thead><tr><th>날짜</th><th>최고기온</th><th>미스트</th><th>살수만</th><th>야간 살수</th><th>예상 물 사용</th></tr></thead>
+          <tbody id="fc-body"><tr><td colspan="6" class="muted">예보 자료를 기다리는 중입니다.</td></tr></tbody>
+        </table>
+        <details class="assume">
+          <summary>물 사용량 가정값 조정</summary>
+          <div class="assume-grid">
+            <label>소화전당 노즐 수 <input type="number" id="w-noz" min="1" max="40" step="1"></label>
+            <label>노즐 분사량 (L/분) <input type="number" id="w-lpm" min="0.02" max="1" step="0.01"></label>
+            <label>하부 살수 (mm/시간) <input type="number" id="w-mm" min="0" max="5" step="0.1"></label>
+            <label>살수 보도폭 (m) <input type="number" id="w-sw" min="1" max="8" step="0.5"></label>
+          </div>
+          <p class="muted small">미스트는 노즐 수 × 분사량 × 10분 가동 · 5분 정지, 하부 살수는 구간 연장 × 보도폭 × 살수 깊이(1mm = 1L/㎡)로 계산합니다. 괄호 안 범위는 예보 기온이 ±1℃ 달라질 때입니다.</p>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>구간 목록</h2>
+            <p class="muted">행을 누르면 지도에서 해당 구간을 선택합니다.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="seg-table">
+            <thead><tr><th>구간</th><th>위치</th><th>유형</th><th>판정</th><th>기온</th><th>기온 저감</th></tr></thead>
+            <tbody id="seg-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <aside class="col-side">
@@ -75,6 +132,7 @@
           <div class="kpi"><span class="k-label">상대습도</span><span class="k-val" id="k-rh">–</span></div>
           <div class="kpi"><span class="k-label">습구온도</span><span class="k-val" id="k-tw">–</span></div>
           <div class="kpi"><span class="k-label">미스트 가동 구간</span><span class="k-val" id="k-on">–</span></div>
+          <div class="kpi wide"><span class="k-label">바람</span><span class="k-val" id="k-wind">–</span><span class="k-sub" id="k-wind-note"></span></div>
           <div class="kpi wide"><span class="k-label">보행축 주변 생활인구</span><span class="k-val" id="k-pop">–</span><span class="k-sub" id="k-pop-note"></span></div>
         </div>
         <p class="verdict" id="verdict"></p>
@@ -85,32 +143,34 @@
         <table class="mini">
           <thead><tr><th></th><th>기온</th><th>체감온도</th></tr></thead>
           <tbody>
-            <tr><td>그늘막 구간 (유형 A·B)</td><td id="e-ab-t">–</td><td id="e-ab-a">–</td></tr>
-            <tr><td>노출 구간 (유형 C)</td><td id="e-c-t">–</td><td id="e-c-a">–</td></tr>
+            <tr><td>그늘막 구간 (유형 A)</td><td id="e-ab-t">–</td><td id="e-ab-a">–</td></tr>
+            <tr><td>노출 구간 (유형 B/C)</td><td id="e-c-t">–</td><td id="e-c-a">–</td></tr>
           </tbody>
         </table>
-        <p class="muted small">미스트 가동 시에만 산정합니다. 체감온도 저감폭이 기온 저감폭보다 작은 것은 미스트가 습도를 함께 올리기 때문입니다.</p>
+        <p class="muted small">미스트 가동 시에만 산정합니다. 유형 B/C는 아직 그늘막이 없으므로 노출 효율(0.27)로 보수적으로 계산합니다. 체감온도 저감폭이 기온 저감폭보다 작은 것은 미스트가 습도를 함께 올리기 때문입니다.</p>
       </div>
 
       <div class="card" id="seg-card">
         <h2>선택 구간</h2>
-        <div id="seg-detail" class="muted">지도에서 보행축 구간을 누르면 상세 정보가 표시됩니다.</div>
+        <div id="seg-detail" class="muted">지도나 구간 목록에서 구간을 누르면 상세 정보가 표시됩니다.</div>
       </div>
 
       <div class="card note">
         <h2>산정 방법</h2>
         <p>구간 기온·습도는 정상값을 낸 S-DoT 센서로부터 거리 역가중으로 보간합니다. 미스트 기온 저감은 습구온도 강하량(기온 − 습구온도)에 증발 효율(그늘 0.34, 노출 0.27)과 주기 운전 비율(10분 가동 · 5분 정지)을 곱해 보수적으로 추정하고, 체감온도는 기상청 여름철 체감온도식으로 다시 계산합니다.</p>
+        <p>구간 유형은 지상식 소화전(35m 이내)과 기존 그늘막(45m 이내) 좌표만으로 판정했습니다. 그늘막이 없는 8개 구간은 보도 유효폭을 로드뷰로 실측하기 전까지 B/C를 확정하지 않습니다.</p>
         <p class="muted small" id="src-note"></p>
       </div>
     </aside>
   </main>
 
   <footer class="foot">
-    자료: 서울 열린데이터광장 S-DoT 환경정보·생활인구, 서울시 소방재난본부 소방용수시설(2025.12.31), 서울시 폭염저감시설 그늘막(2026.9.10), 기상청 ASOS. 시뮬레이션 결과는 추정치이며 실측값이 아닙니다.
+    자료: 서울 열린데이터광장 S-DoT 환경정보·생활인구, 서울시 소방재난본부 소방용수시설(2025.12.31), 서울시 폭염저감시설 그늘막(2026.9.10), 서울시 가로수 위치정보(2026), 기상청 ASOS·단기예보. 배경지도 © OpenStreetMap 기여자. 시뮬레이션 결과는 추정치이며 실측값이 아닙니다.
   </footer>
 
   <script src="assets/vendor/leaflet/leaflet.js"></script>
   <script src="assets/vendor/chart.umd.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="assets/model.js?v=20261115"></script>
+  <script src="assets/app.js?v=20261115"></script>
 </body>
 </html>

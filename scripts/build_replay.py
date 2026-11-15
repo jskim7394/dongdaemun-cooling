@@ -71,7 +71,7 @@ def main():
             raise SystemExit("필수 열을 찾지 못했습니다. 위에 출력된 열 이름을 확인하세요.")
         for r in reader:
             serial = (r.get(fs["serial"]) or "").strip()
-            if serial not in known and not (fs["gu"] and "동대문" in (r.get(fs["gu"]) or "")):
+            if serial not in known and not (fs["gu"] and any(k in (r.get(fs["gu"]) or "") for k in ("동대문", "Dongdaemun"))):
                 continue
             stamp = re.sub(r"\D", "", r.get(fs["time"]) or "")[:10]
             if len(stamp) < 10 or not (lo <= stamp[:8] <= hi):

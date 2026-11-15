@@ -34,6 +34,7 @@ h2 { font-size: 15px; font-weight: 700; color: var(--navy); }
 .muted { color: var(--muted); }
 .small { font-size: 12px; margin-top: 8px; }
 
+.base-tiles { filter: grayscale(1) brightness(1.08) contrast(0.82); opacity: 0.85; }
 #map { height: 520px; border-radius: 8px; border: 1px solid var(--line); }
 .layers { display: flex; gap: 12px; color: var(--ink-2); font-size: 13px; }
 .layers input { accent-color: var(--navy); }
@@ -77,6 +78,47 @@ table.mini tr:last-child td { border-bottom: 1px solid var(--navy); }
 .foot { max-width: 1320px; margin: 0 auto; padding: 4px 24px 28px; color: var(--muted); font-size: 12px; }
 
 .leaflet-tooltip.t-lbl { background: #fff; border: 1px solid var(--line); color: var(--ink); font-size: 11px; padding: 1px 5px; box-shadow: none; }
+
+.top-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.link-3d { color: #fff; text-decoration: none; font-weight: 600; border: 1px solid #5C77A3; padding: 8px 14px; border-radius: 8px; }
+.link-3d:hover { background: var(--navy-2); }
+
+.map-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.seg-btns { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.seg-btns button, .btn-ghost { font: inherit; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--ink-2); padding: 5px 11px; border-radius: 999px; cursor: pointer; }
+.seg-btns button.on { border-color: var(--navy); background: var(--navy); color: #fff; }
+.btn-ghost { border-color: #E3B9B4; color: #A5322A; }
+.btn-ghost.on { background: #C0392B; border-color: #C0392B; color: #fff; }
+.fire-note { font-size: 12.5px; color: #A5322A; background: #FBEFEE; border-radius: 6px; padding: 6px 10px; margin: 0 0 10px; }
+.fire-txt { color: #A5322A; }
+#map.picking { cursor: crosshair; }
+#map.picking .leaflet-interactive { cursor: crosshair; }
+
+.fc-strip { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.fc-h { width: 16px; height: 22px; border-radius: 3px; font-size: 9.5px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.fc-day { font-size: 11.5px; font-weight: 700; color: var(--navy); margin: 0 4px 0 8px; }
+.fc-day:first-child { margin-left: 0; }
+.fc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 2px; font-size: 12px; color: var(--ink-2); }
+.fc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fc-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.fc-table td:last-child, .fc-table th:last-child { min-width: 150px; }
+.assume { margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+.assume summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+.assume-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; margin-top: 8px; }
+.assume-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.assume-grid input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; width: 100%; }
+
+.table-wrap { max-height: 420px; overflow: auto; border-top: 1px solid var(--navy); }
+table.seg-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.seg-table th { position: sticky; top: 0; background: #fff; text-align: left; font-weight: 600; color: var(--ink-2); padding: 7px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.seg-table td { padding: 6px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; vertical-align: top; }
+table.seg-table td:nth-child(5), table.seg-table td:nth-child(6), table.seg-table th:nth-child(5), table.seg-table th:nth-child(6) { text-align: right; white-space: nowrap; }
+table.seg-table td.loc { min-width: 170px; }
+table.seg-table td.loc .muted { font-size: 11.5px; }
+table.seg-table tbody tr { cursor: pointer; }
+table.seg-table tbody tr:hover { background: var(--panel); }
+table.seg-table tbody tr.sel { background: #E8EEF8; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
 
 @media (max-width: 980px) {
   .layout { grid-template-columns: 1fr; padding: 16px; }

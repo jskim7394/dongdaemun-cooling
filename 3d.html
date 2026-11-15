@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>쿨링 보행축 3D 비교</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="assets/compare3d.css?v=20261115">
+</head>
+<body>
+  <header class="bar">
+    <div class="bar-l">
+      <a class="back" href="index.html">← 대시보드</a>
+      <h1>쿨링 보행축 3D 비교</h1>
+    </div>
+    <div class="bar-r">
+      <div class="switch">
+        <button id="v-replay" class="on">여름 재생</button>
+        <button id="v-live">실시간</button>
+      </div>
+      <select id="day"></select>
+      <label class="hour">시각 <b id="hour-lbl">14시</b><input type="range" id="hour" min="0" max="23" value="14"></label>
+      <div class="chips" id="quick"><button data-h="9">09</button><button data-h="14">14</button><button data-h="19">19</button></div>
+      <button id="play" class="btn">재생</button>
+      <div class="chips" id="focus">
+        <button data-c="all" class="on">전체</button><button data-c="C1">C1</button><button data-c="C2">C2</button><button data-c="C3">C3</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="stage">
+    <div id="deck"></div>
+    <div class="pane-lbl l"><b>현재</b> 시스템 미가동<span id="lbl-l"></span></div>
+    <div class="pane-lbl r"><b>열저감 시스템 가동</b><span id="lbl-r"></span></div>
+    <div class="divider"></div>
+    <div class="info" id="info"></div>
+    <div class="legend">
+      <div class="lg-title">기온 (℃)</div>
+      <div class="lg-bar" id="lg-bar"></div>
+      <div class="lg-ticks" id="lg-ticks"></div>
+      <div class="lg-modes" id="lg-modes"></div>
+    </div>
+    <div class="caveat">경험식 기반 시각화이며 CFD 해석 결과가 아닙니다. 기온장은 S-DoT 보간값, 지면 근처 층은 ASOS 지면온도, 냉각은 미스트 효과식의 구간 평균 저감폭을 폴대(35m 이내 지상식 소화전을 보행축에 투영한 지점) 주변에 분배한 것이며, 국지 저감은 습구온도 강하량의 50%를 넘지 않게 제한했습니다. 하부 살수에 의한 노면 냉각과 건물에 의한 바람 변형은 반영하지 않았습니다.</div>
+    <div id="loading">3D 자료를 불러오는 중입니다…</div>
+  </div>
+
+  <script src="assets/vendor/deck.min.js"></script>
+  <script src="assets/model.js?v=20261115"></script>
+  <script src="assets/compare3d.js?v=20261115"></script>
+</body>
+</html>
