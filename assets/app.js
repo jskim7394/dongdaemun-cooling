@@ -60,9 +60,12 @@
   let map, layerHyd, layerShade, layerSdot, layerSeg, layerPop;
   function initMap() {
     map = L.map("map", { zoomControl: true, scrollWheelZoom: false, preferCanvas: true }).setView([37.5835, 127.052], 14);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19, subdomains: "abcd",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    // 배경지도: Esri 연회색 지도 (API 키 불필요, 출처 표기 필수)
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 16, attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+    }).addTo(map);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 16, pane: "overlayPane", opacity: 0.9,
     }).addTo(map);
     map.createPane("popPane"); map.getPane("popPane").style.zIndex = 350;
     layerPop = L.geoJSON(S.data.population || { type: "FeatureCollection", features: [] }, {
