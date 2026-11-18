@@ -145,7 +145,7 @@ window.CoolModel = (() => {
           P.forEach((n) => { if (A[n.seg] && Math.abs(n.x - x) < 40 && Math.abs(n.y - y) < 40) { dt += A[n.seg] * kern(n, x, y, 1.5, w); cap = Math.min(cap, caps[n.seg]); } });
           if (dt < cap) dt = cap;
           const tw = r.tw;
-          pts.push({ d: dist, seg: si, base: apparent(r.ta, tw), on: apparent(r.ta + dt, tw), dTa: dt });
+          pts.push({ d: dist, seg: si, x, y, base: apparent(r.ta, tw), on: apparent(r.ta + dt, tw), dTa: dt });
           dist += HEAT.step;
         }
       }
@@ -163,5 +163,5 @@ window.CoolModel = (() => {
              maxDrop: pts.reduce((a, p) => Math.max(a, p.base - p.on), 0) };
   }
 
-  return { PLUME, HEAT, poles, wind, kern, amps, routeProfile, RULE, EFF, DUTY, MODE, TYPE_LABEL, WATER, wetBulb, apparent, modeOf, effFor, effect, idw, waterLiters, getJSON, wdName };
+  return { xy, PLUME, HEAT, poles, wind, kern, amps, routeProfile, RULE, EFF, DUTY, MODE, TYPE_LABEL, WATER, wetBulb, apparent, modeOf, effFor, effect, idw, waterLiters, getJSON, wdName };
 })();

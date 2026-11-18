@@ -13,6 +13,7 @@ CRP2340 환경계획 2조 BWA3 대시보드입니다.
 ```
 index.html                      대시보드
 3d.html                         3D 비교 화면
+assets/utci.js, thermal.js       UTCI 근사식, SOLWEIG 방식 평균복사온도
 assets/model.js                 운전 규칙·저감 산식·물 사용량 가정 (두 화면 공통)
 assets/app.js, style.css        대시보드 로직과 스타일
 assets/compare3d.js, .css       3D 비교 로직과 스타일
@@ -24,6 +25,8 @@ data/hydrants.json              동대문구 소화전
 data/trees.json                 동대문구 가로수 (2026 서울시 가로수 위치정보)
 data/buildings_near.json        보행축 260m 안 건물 (국토부 GIS건물통합정보, 3D용)
 data/population.json            250m 격자 생활인구
+data/lst.json                   Landsat 8 지표면온도 (2026-06-16, 08-03, 동대문구, 구름 제외)
+data/solweig.json               보행축 20m 안 2m 격자 그림자·SVF·토지피복 (scripts/solweig_pre.py)
 data/boundary.json              동대문구 경계 (southkorea/seoul-maps, 지도 바깥 가림용)
 data/replay.json                여름 재생 자료
 data/realtime.json, kma.json    Actions가 자동 갱신 (직접 수정하지 않음)

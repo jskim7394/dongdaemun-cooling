@@ -68,8 +68,20 @@
             <label><input type="checkbox" id="lyr-tree"> 가로수</label>
             <label><input type="checkbox" id="lyr-sdot" checked> 기온 센서</label>
             <label><input type="checkbox" id="lyr-pop"> 생활인구</label>
+            <label><input type="checkbox" id="lyr-lst"> 여름 지표면온도(위성)</label>
+            <label><input type="checkbox" id="lyr-utci"> 보행자 열 스트레스</label>
           </div>
           <button id="fire-btn" class="btn-ghost" title="지도를 눌러 출동 지점을 지정합니다">119 출동 시 자동 차단 보기</button>
+        </div>
+        <div class="sub-tools" id="lst-tools" hidden>
+          <span class="sub-lbl">지표면온도</span>
+          <div class="seg-btns small-btns" id="lst-dates"></div>
+          <span class="readout" id="lst-read">지도 위에 커서를 올리면 그 지점 값을 보여 줍니다.</span>
+        </div>
+        <div class="sub-tools" id="utci-tools" hidden>
+          <span class="sub-lbl">열 스트레스</span>
+          <div class="seg-btns small-btns" id="utci-mode"><button data-m="base" class="on">시설 없음</button><button data-m="on">시스템 가동</button></div>
+          <span class="readout" id="utci-read"></span>
         </div>
         <p id="fire-note" class="fire-note" hidden></p>
         <div id="map"></div>
@@ -142,7 +154,10 @@
             <button data-c="C1">C1</button><button data-c="C2">C2</button><button data-c="C3">C3</button>
           </div>
         </div>
-        <p class="muted desc">한쪽 끝에서 반대쪽 끝까지 걸어가며 느끼는 체감온도입니다. 회색은 시설이 없을 때, 초록은 가동할 때입니다. 미스트 폴대 근처를 지날 때마다 체감온도가 잠깐씩 내려가고, 폭염주의보 기준인 체감 33℃를 넘는 더위에 노출되는 양(넘은 온도 × 시간)이 줄어듭니다.</p>
+        <div class="seg-btns small-btns metric-btns" id="metric-btns">
+          <button data-m="app" class="on">기상청 체감온도</button><button data-m="utci">UTCI (그늘·햇빛 반영)</button>
+        </div>
+        <p class="muted desc" id="route-desc">한쪽 끝에서 반대쪽 끝까지 걸어가며 느끼는 체감온도입니다. 회색은 시설이 없을 때, 초록은 가동할 때입니다. 미스트 폴대 근처를 지날 때마다 체감온도가 잠깐씩 내려가고, 폭염주의보 기준인 체감 33℃를 넘는 더위에 노출되는 양(넘은 온도 × 시간)이 줄어듭니다.</p>
         <div class="chart-box route-box"><canvas id="chart-route"></canvas></div>
         <div class="route-stats" id="route-stats"></div>
         <details class="more">
@@ -177,6 +192,9 @@
         <p><b>미스트 기온 저감</b> 물이 증발하며 공기를 식힐 수 있는 최대폭은 기온과 습구온도(젖은 온도계 온도)의 차이입니다. 여기에 실제로 증발하는 비율(그늘 0.34, 그늘 없음 0.27)과 10분 가동·5분 정지 비율을 곱해 보수적으로 잡았습니다.</p>
         <p><b>체감온도</b> 기상청 여름철 체감온도식을 씁니다. 미스트는 기온을 낮추지만 습도를 올리므로, 습구온도가 그대로라고 보고 다시 계산합니다.</p>
         <p><b>보행 경로 효과</b> 35m 안 지상 소화전을 보행축 선 위로 옮긴 지점을 미스트 폴대로 보고, 폴대 주변 반경 10m의 평균 저감이 위 구간 평균값과 같도록 냉기 분포를 정했습니다. 한 지점의 저감은 기온−습구온도 차의 50%를 넘지 않게 제한했습니다. 걷는 속도는 1.2m/s입니다.</p>
+        <p><b>보행자 열 스트레스(UTCI)</b> 기온만 보는 체감온도와 달리, 햇빛과 뜨거운 바닥·벽에서 오는 복사열을 함께 따지는 국제 지표입니다. 계산은 SOLWEIG 모형(Lindberg 외, 2008)을 단순화해 했습니다. 먼저 건물 높이와 가로수로 2m 간격 그림자를 미리 계산했습니다(Ratti & Richens, 2004 방식, 7월 10일·8월 1일·8월 22일). 여기에 하늘이 보이는 정도(SVF), 환경부 토지피복지도(2014), 기상청 서울 관측소의 시간별 일사·지면온도를 더해 평균복사온도를 구했습니다. 끝으로 UTCI 근사식(Bröde 외, 2012)에 넣었습니다. 가로수 수관은 위성 AI 수목 높이 자료(Tolan 외, 2024)가 가로수를 4%만 잡아내서, 수종별 평균 지름과 높이를 가정해 그렸습니다. 바닥 살수 구간의 노면온도는 파리 실측(Hendel 외, 2015)을 근거로 7℃ 낮췄습니다. 일사 자료가 필요하므로 여름 재생에서만 계산합니다.</p>
+        <p><b>위성 지표면온도</b> Landsat 8 Collection 2 Level-2 지표면온도(30m)입니다. 동대문구가 구름 없이 찍힌 2026년 6월 16일·8월 3일 오전 11시 10분 영상만 썼고, 구름·그림자 표시 화소는 뺐습니다. 실시간 판단에는 쓰지 않고, 어디가 뜨거운지 보여 주는 배경 자료로만 씁니다.</p>
+        <p class="muted small">Lindberg, F., Holmer, B., Thorsson, S. (2008). SOLWEIG 1.0. <i>Int. J. Biometeorology</i> 52, 697–713. · Bröde, P. 외 (2012). Deriving the operational procedure for the UTCI. <i>Int. J. Biometeorology</i> 56, 481–494. · Ratti, C., Richens, P. (2004). Raster analysis of urban form. <i>Environment and Planning B</i> 31, 297–309. · Erbs, D.G. 외 (1982). <i>Solar Energy</i> 28, 293–302. · Tolan, J. 외 (2024). <i>Remote Sensing of Environment</i> 300, 113888. · Hendel, M. 외 (2015). <i>J. Sustain. Dev. Energy Water Environ. Syst.</i> 3(1), 1–11.</p>
         <p><b>구간 유형</b> 지상 소화전(35m 이내)과 기존 그늘막(45m 이내) 좌표로 판정했습니다. 그늘막이 없는 8개 구간은 보도 폭을 재기 전까지 B/C를 확정하지 않습니다.</p>
         <p class="muted small" id="src-note"></p>
       </details>
@@ -191,6 +209,7 @@
           <div class="kpi"><span class="k-label">습도</span><span class="k-val" id="k-rh">–</span></div>
           <div class="kpi"><span class="k-label">체감온도</span><span class="k-val" id="k-app">–</span></div>
           <div class="kpi"><span class="k-label">미스트 가동 구간</span><span class="k-val" id="k-on">–</span></div>
+          <div class="kpi wide"><span class="k-label">보행자 열 스트레스 (UTCI, 그늘·햇빛 반영)</span><span class="k-val" id="k-utci">–</span><span class="k-sub" id="k-utci-note"></span></div>
           <div class="kpi wide"><span class="k-label">바람</span><span class="k-val" id="k-wind">–</span><span class="k-sub" id="k-wind-note"></span></div>
           <div class="kpi wide"><span class="k-label">주변 생활인구</span><span class="k-val" id="k-pop">–</span><span class="k-sub" id="k-pop-note"></span></div>
         </div>
@@ -204,12 +223,14 @@
   </main>
 
   <footer class="foot">
-    자료: 서울 열린데이터광장 S-DoT 환경정보·생활인구, 서울시 소방재난본부 소방용수시설(2025.12.31), 서울시 폭염저감시설 그늘막(2026.9.10), 서울시 가로수 위치정보(2026), 기상청 ASOS·단기예보, 행정구역 경계(southkorea/seoul-maps). 배경지도 © OpenStreetMap 기여자. 결과는 추정치이며 실측값이 아닙니다.
+    자료: 서울 열린데이터광장 S-DoT 환경정보·생활인구, 서울시 소방재난본부 소방용수시설(2025.12.31), 서울시 폭염저감시설 그늘막(2026.9.10), 서울시 가로수 위치정보(2026), 기상청 ASOS·단기예보, Landsat 8(USGS), 환경부 토지피복지도, Meta·WRI 수목높이, Copernicus DEM, 행정구역 경계(southkorea/seoul-maps). 배경지도 © OpenStreetMap 기여자. 결과는 추정치이며 실측값이 아닙니다.
   </footer>
 
   <script src="assets/vendor/leaflet/leaflet.js"></script>
   <script src="assets/vendor/chart.umd.js"></script>
   <script src="assets/model.js?v=20261118"></script>
+  <script src="assets/utci.js?v=20261118"></script>
+  <script src="assets/thermal.js?v=20261118"></script>
   <script src="assets/app.js?v=20261118"></script>
 </body>
 </html>
