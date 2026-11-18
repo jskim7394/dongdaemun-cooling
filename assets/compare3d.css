@@ -32,21 +32,36 @@ select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; max-wid
 .info { position: absolute; right: 12px; top: 12px; background: rgba(255,255,255,0.95); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 230px; font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
 .info b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .info .big { font-size: 18px; color: var(--navy); font-weight: 700; }
-.legend { position: absolute; left: 50%; transform: translateX(-50%); bottom: 54px; background: rgba(255,255,255,0.95); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; width: min(440px, 90%); }
+.legend { position: absolute; right: 12px; bottom: 10px; background: rgba(255,255,255,0.95); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; width: min(440px, 90%); }
 .lg-title { font-size: 12px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
 .lg-bar { height: 10px; border-radius: 3px; }
 .lg-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-2); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .lg-modes { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: var(--ink-2); }
 .lg-modes span { display: inline-flex; align-items: center; gap: 5px; }
 .lg-modes i { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
-.caveat { position: absolute; left: 12px; right: 12px; bottom: 10px; font-size: 11.5px; color: var(--ink-2); background: rgba(255,255,255,0.9); border-radius: 6px; padding: 5px 10px; text-align: center; }
+.caveat { position: absolute; left: 12px; bottom: 10px; max-width: min(640px, calc(100% - 24px)); font-size: 11.5px; color: var(--ink-2); background: rgba(255,255,255,0.94); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.caveat p { display: none; margin: 6px 0 2px; line-height: 1.5; }
+.caveat.open p { display: block; }
+.cv-btn { font: inherit; border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 0; text-align: left; }
+.cv-btn span { color: var(--navy); font-weight: 600; margin-left: 4px; text-decoration: underline; }
+.chip-lbl { color: #B7C6E0; font-size: 12px; align-self: center; margin-right: 2px; }
 #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; color: var(--navy); background: rgba(238,240,243,0.85); }
 .deck-tooltip { font-family: Pretendard, "Malgun Gothic", sans-serif !important; font-size: 12px !important; background: #fff !important; color: var(--ink) !important; border: 1px solid var(--line); border-radius: 6px; }
 
 @media (max-width: 760px) {
+  .bar { padding: 8px 10px; gap: 6px; }
+  .bar h1 { font-size: 15px; }
+  .bar-r { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+  .bar-r > * { flex: 0 0 auto; }
+  select { max-width: 170px; }
+  .legend { left: 8px; right: 8px; bottom: 40px; width: auto; padding: 5px 8px; }
+  .lg-modes { display: none; }
+  .caveat { left: 8px; bottom: 6px; max-width: calc(100% - 16px); }
+  .caveat.open { bottom: 6px; z-index: 5; }
+  .pane-lbl { padding: 4px 8px; font-size: 12px; top: 8px; }
+  .pane-lbl span { display: none; }
   .divider { left: 0; right: 0; top: 50%; bottom: auto; width: auto; height: 2px; }
   .pane-lbl.r { left: 12px; top: calc(50% + 12px); }
   .info { display: none; }
-  .legend { bottom: 64px; }
   .hour input { width: 110px; }
 }

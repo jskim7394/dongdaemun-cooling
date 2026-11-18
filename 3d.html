@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>쿨링 보행축 3D 비교</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-  <link rel="stylesheet" href="assets/compare3d.css?v=20261115">
+  <link rel="stylesheet" href="assets/compare3d.css?v=20261118">
 </head>
 <body>
   <header class="bar">
@@ -22,6 +22,12 @@
       <label class="hour">시각 <b id="hour-lbl">14시</b><input type="range" id="hour" min="0" max="23" value="14"></label>
       <div class="chips" id="quick"><button data-h="9">09</button><button data-h="14">14</button><button data-h="19">19</button></div>
       <button id="play" class="btn">재생</button>
+      <div class="chips" id="rmode" title="오른쪽 화면">
+        <span class="chip-lbl">오른쪽</span><button data-m="temp" class="on">기온</button><button data-m="diff">차이</button>
+      </div>
+      <div class="chips" id="bld" title="건물 표시">
+        <span class="chip-lbl">건물</span><button data-m="solid" class="on">보이기</button><button data-m="ghost">반투명</button><button data-m="hide">숨기기</button>
+      </div>
       <div class="chips" id="focus">
         <button data-c="all" class="on">전체</button><button data-c="C1">C1</button><button data-c="C2">C2</button><button data-c="C3">C3</button>
       </div>
@@ -31,21 +37,26 @@
   <div id="stage">
     <div id="deck"></div>
     <div class="pane-lbl l"><b>현재</b> 시스템 미가동<span id="lbl-l"></span></div>
-    <div class="pane-lbl r"><b>열저감 시스템 가동</b><span id="lbl-r"></span></div>
+    <div class="pane-lbl r"><b id="lbl-r-title">열저감 시스템 가동</b><span id="lbl-r"></span></div>
     <div class="divider"></div>
     <div class="info" id="info"></div>
     <div class="legend">
       <div class="lg-title">기온 (℃)</div>
       <div class="lg-bar" id="lg-bar"></div>
       <div class="lg-ticks" id="lg-ticks"></div>
+      <div id="lg-diff" hidden>
+        <div class="lg-title" style="margin-top:6px">오른쪽: 가동 − 현재 (℃)</div>
+        <div class="lg-bar" id="lg-dbar"></div>
+        <div class="lg-ticks"><span>−6</span><span>−4</span><span>−2</span><span>0</span></div>
+      </div>
       <div class="lg-modes" id="lg-modes"></div>
     </div>
-    <div class="caveat">경험식 기반 시각화이며 CFD 해석 결과가 아닙니다. 기온장은 S-DoT 보간값, 지면 근처 층은 ASOS 지면온도, 냉각은 미스트 효과식의 구간 평균 저감폭을 폴대(35m 이내 지상식 소화전을 보행축에 투영한 지점) 주변에 분배한 것이며, 국지 저감은 습구온도 강하량의 50%를 넘지 않게 제한했습니다. 하부 살수에 의한 노면 냉각과 건물에 의한 바람 변형은 반영하지 않았습니다.</div>
+    <div class="caveat" id="caveat"><button id="cv-btn" class="cv-btn">ⓘ 경험식 기반 시각화이며 CFD 해석 결과가 아닙니다 <span>자세히</span></button><p>기온장은 S-DoT 보간값, 지면 근처 층은 ASOS 지면온도, 냉각은 미스트 효과식의 구간 평균 저감폭을 폴대(35m 이내 지상식 소화전을 보행축에 투영한 지점) 주변에 분배한 것이며, 국지 저감은 습구온도 강하량의 50%를 넘지 않게 제한했습니다. 바닥 살수 구간(보행축 선 12m 안)은 노면온도를 최대 7℃ 낮췄고(Hendel 외 2015 파리 실측 6~7.5℃), 이는 지면 근처 층에만 반영했습니다. 건물에 의한 바람 변형은 반영하지 않았습니다.</p></div>
     <div id="loading">3D 자료를 불러오는 중입니다…</div>
   </div>
 
   <script src="assets/vendor/deck.min.js"></script>
-  <script src="assets/model.js?v=20261115"></script>
-  <script src="assets/compare3d.js?v=20261115"></script>
+  <script src="assets/model.js?v=20261118"></script>
+  <script src="assets/compare3d.js?v=20261118"></script>
 </body>
 </html>

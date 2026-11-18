@@ -24,6 +24,7 @@ data/hydrants.json              동대문구 소화전
 data/trees.json                 동대문구 가로수 (2026 서울시 가로수 위치정보)
 data/buildings_near.json        보행축 260m 안 건물 (국토부 GIS건물통합정보, 3D용)
 data/population.json            250m 격자 생활인구
+data/boundary.json              동대문구 경계 (southkorea/seoul-maps, 지도 바깥 가림용)
 data/replay.json                여름 재생 자료
 data/realtime.json, kma.json    Actions가 자동 갱신 (직접 수정하지 않음)
 scripts/fetch_sdot.py           S-DoT 실시간 수집
@@ -54,4 +55,5 @@ OpenStreetMap 표준 타일을 씁니다. 키가 필요 없고 19단계까지 �
 - GitHub 예약 실행은 몇 분씩 늦어질 수 있고, 저장소에 60일 동안 활동이 없으면 자동으로 멈춥니다.
 - 보도 유효폭은 아직 실측하지 않았습니다. 그늘막이 없는 8개 구간의 B/C 구분은 로드뷰 실측 후 `segments.json`의 `seg_type`만 고치면 됩니다.
 - 저감 효과와 물 사용량은 추정치입니다. 증발 효율(그늘 0.34, 노출 0.27), 주기 운전 비율(10/15), 노즐 수·분사량·살수 깊이는 `assets/model.js` 맨 위에서 바꿀 수 있고, 물 사용량 가정은 대시보드 화면에서도 조정됩니다.
+- 실시간 화면은 서울시 S-DoT 자료가 3시간 넘게 늦으면 기상청 초단기실황 기온·습도를 기준으로 하고, 센서 사이의 차이만 S-DoT에서 가져옵니다. `realtime.json`의 `latest_reg`(API 등록 시각)로 지연 정도를 확인할 수 있습니다.
 - 3D 화면의 플룸 모양(폭 7~8m, 높이 중심 2.2m, 풍속에 따른 이동)은 시각화를 위한 가정입니다. 구간 평균 저감폭은 대시보드와 같은 산식을 따릅니다.

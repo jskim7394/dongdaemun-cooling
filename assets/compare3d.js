@@ -15,12 +15,22 @@
   // ---- 냉각 커널 (경험식) ----
   const K = { Lc: 7, La0: 8, LaPerWs: 1.5, zc: 2.2, zs: 1.6, driftPerWs: 2.5, driftMax: 10, zone: 10, reach: 28, capFrac: 0.5, ampMax: 2.5 };
   const ZLEV = [0.3, 1, 1.8, 2.6, 3.6, 5, 7];
+  const WET = new Set(["mist", "flush", "night"]);
+  const SURF_DROP = 7;
   const RES = 3;          // 지면 래스터 해상도(m)
   const PT = 3;           // 3차원 점 간격(m, 래스터 해상도의 배수)
 
   // 색: 차가운 파랑 → 흰색 → 붉은색 (RdYlBu 계열)
   const STOPS = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"]
     .map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  // 차이 색: 0℃ 흰색 → −6℃ 진한 파랑
+  const DSTOPS = [[247, 247, 247], [209, 229, 240], [146, 197, 222], [67, 147, 195], [33, 102, 172], [5, 48, 97]];
+  const DMAX = 6;
+  function diffColor(d, out, o) {
+    let u = -d / DMAX; u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const f = u * (DSTOPS.length - 1), i = Math.min(DSTOPS.length - 2, Math.floor(f)), w = f - i, a = DSTOPS[i], b = DSTOPS[i + 1];
+    out[o] = a[0] + (b[0] - a[0]) * w; out[o + 1] = a[1] + (b[1] - a[1]) * w; out[o + 2] = a[2] + (b[2] - a[2]) * w;
+  }
   function colorAt(t, lo, hi, out, o) {
     let u = (t - lo) / (hi - lo); u = u < 0 ? 0 : u > 1 ? 1 : u;
     const f = u * (STOPS.length - 1), i = Math.min(STOPS.length - 2, Math.floor(f)), w = f - i;
@@ -123,9 +133,21 @@
       const i = py * nx + px;
       if (D[i] > 25 || G.bmask[i]) continue;
       const x = x0 + (px + 0.5) * RES, y = y0 + (ny - 1 - py + 0.5) * RES;
-      cells.set(i, { x, y, nz: [] });
+      cells.set(i, { x, y, nz: [], d: D[i], seg: -1 });
     }
     cells.forEach((c) => G.noz.forEach((n, ni) => { if (Math.hypot(c.x - n.x, c.y - n.y) <= K.reach) c.nz.push(ni); }));
+    // 가장 가까운 구간 (바닥 살수 범위 판정용)
+    const segXY = segs.map((s) => s.coords.map(([la, lo]) => toXY(la, lo)));
+    cells.forEach((c) => {
+      let bd = 1e9;
+      segXY.forEach((line, si) => line.forEach(([px, py], j) => {
+        if (j === line.length - 1) return;
+        const [qx, qy] = line[j + 1], dx = qx - px, dy = qy - py;
+        const t = Math.max(0, Math.min(1, ((c.x - px) * dx + (c.y - py) * dy) / (dx * dx + dy * dy || 1)));
+        const d = Math.hypot(c.x - px - t * dx, c.y - py - t * dy);
+        if (d < bd) { bd = d; c.seg = si; }
+      }));
+    });
     const cl = [...cells.values()];
     const N = cl.length * ZLEV.length;
     G.pts = { n: N, pos: new Float32Array(N * 3), col: new Uint8Array(N * 4), colOn: new Uint8Array(N * 4), cell: new Int32Array(N), z: new Float32Array(N) };
@@ -164,9 +186,19 @@
     const meta = new Map(S.data.sensors.map((s) => [s.serial, s]));
     if (S.view === "live") {
       const rt = S.data.realtime || {};
-      const list = (rt.sensors || []).filter((s) => s.t != null && s.rh != null && meta.has(s.serial)).map((s) => ({ ...meta.get(s.serial), t: s.t, rh: s.rh }));
-      const hour = rt.latest_obs ? +rt.latest_obs.slice(8, 10) : new Date().getHours();
+      let list = (rt.sensors || []).filter((s) => s.t != null && s.rh != null && meta.has(s.serial)).map((s) => ({ ...meta.get(s.serial), t: s.t, rh: s.rh }));
+      let hour = rt.latest_obs ? +rt.latest_obs.slice(8, 10) : new Date().getHours();
       const n = (S.data.kma || {}).ncst;
+      const lo = rt.latest_obs;
+      const age = lo ? (Date.now() - (Date.UTC(+lo.slice(0, 4), +lo.slice(4, 6) - 1, +lo.slice(6, 8), +lo.slice(8, 10)) - 9 * 3.6e6)) / 3.6e6 : Infinity;
+      if (n && typeof n.T1H === "number" && (age > 3 || !list.length)) {
+        // S-DoT가 늦으면 기상청 실황 기온을 기준으로 하고 센서 사이 차이만 S-DoT에서 가져온다 (대시보드와 같은 방식)
+        const mean = list.length ? list.reduce((a, s) => a + s.t, 0) / list.length : 0;
+        list = list.map((s) => ({ ...s, t: n.T1H + (s.t - mean), rh: n.REH }));
+        hour = +n.time.slice(8, 10);
+        return { hour, sensors: list, uniform: { t: n.T1H, rh: n.REH }, ws: n.WSD, wd: n.VEC, tg: null,
+                 label: `${+n.time.slice(4, 6)}월 ${+n.time.slice(6, 8)}일 ${hour}시 실시간(기상청 실황)` };
+      }
       return { hour, sensors: list, uniform: null, ws: n && typeof n.WSD === "number" ? n.WSD : null, wd: n ? n.VEC : null, tg: null,
                label: rt.latest_obs ? `${+rt.latest_obs.slice(4, 6)}월 ${+rt.latest_obs.slice(6, 8)}일 ${hour}시 실시간` : "실시간 자료 없음" };
     }
@@ -255,8 +287,13 @@
       let t2 = t;
       const e = G.near.get(i);
       if (e) { const d = dT(e.nz, e.x, e.y, 1.5); t2 += d; if (d < minD) minD = d; }
-      colorAt(t2, lo, hi, rgb, 0);
-      imgR.data[o] = rgb[0]; imgR.data[o + 1] = rgb[1]; imgR.data[o + 2] = rgb[2]; imgR.data[o + 3] = Math.max(a, e && t2 < t - 0.15 ? 235 : 0);
+      if (S.diff) {   // 차이 보기: 가동 − 현재
+        diffColor(t2 - t, rgb, 0);
+        imgR.data[o] = rgb[0]; imgR.data[o + 1] = rgb[1]; imgR.data[o + 2] = rgb[2]; imgR.data[o + 3] = t2 - t < -0.1 ? 240 : Math.round(a * 0.35);
+      } else {
+        colorAt(t2, lo, hi, rgb, 0);
+        imgR.data[o] = rgb[0]; imgR.data[o + 1] = rgb[1]; imgR.data[o + 2] = rgb[2]; imgR.data[o + 3] = Math.max(a, e && t2 < t - 0.15 ? 235 : 0);
+      }
     }
     // 6) 3차원 점
     const P = G.pts;
@@ -264,15 +301,22 @@
       const c = G.cells[P.cell[k]], z = P.z[k];
       const px = (c.x - x0) / RES, py = ny - 1 - (c.y - y0) / RES;
       const ta = taAt(Math.max(0, Math.min(nx - 1, px)), Math.max(0, Math.min(ny - 1, py)));
-      const surf = R.tg != null ? (R.tg - ta) * Math.exp(-z / 0.35) : 0;    // 지면 가열층
-      const tb = ta + surf, ton = tb + dT(c.nz, c.x, c.y, z);
+      const excess = R.tg != null ? R.tg - ta : 0;
+      const surf = excess * Math.exp(-z / 0.35);    // 지면 가열층
+      // 바닥 살수: 보도·차도 가장자리(보행축 선 12m 안)의 노면온도를 최대 7℃ 낮춘다 (Hendel 외 2015 실측 6~7.5℃)
+      const wet = c.seg >= 0 && c.d <= 12 && WET.has(res[c.seg].mode);
+      const surfOn = (wet ? Math.max(0, excess - SURF_DROP) : excess) * Math.exp(-z / 0.35);
+      const tb = ta + surf, ton = ta + surfOn + dT(c.nz, c.x, c.y, z);
       colorAt(tb, lo, hi, P.col, k * 4);
-      colorAt(ton, lo, hi, P.colOn, k * 4);
+      if (S.diff) diffColor(ton - tb, P.colOn, k * 4); else colorAt(ton, lo, hi, P.colOn, k * 4);
       // 배경과 차이가 있는 점만 보이게: 왼쪽은 지면 가열층, 오른쪽은 지면 가열층 + 냉각 플룸
       const aS = Math.abs(surf) > 0.3 ? 30 + 70 * Math.min(1, Math.abs(surf) / 8) : 0;
       const d = ton - tb;
       P.col[k * 4 + 3] = aS;
-      P.colOn[k * 4 + 3] = d < -0.25 ? 70 + 185 * Math.min(1, -d / 2) : aS;
+      const aSon = Math.abs(surfOn) > 0.3 ? 30 + 70 * Math.min(1, Math.abs(surfOn) / 8) : 0;
+      const dAir = dT(c.nz, c.x, c.y, z);
+      P.colOn[k * 4 + 3] = S.diff ? (ton - tb < -0.25 ? 60 + 195 * Math.min(1, (tb - ton) / 3) : 0)
+        : dAir < -0.25 ? 70 + 185 * Math.min(1, -dAir / 2) : aSon;
     }
     const toCanvas = (img) => { const c = document.createElement("canvas"); c.width = nx; c.height = ny; c.getContext("2d").putImageData(img, 0, 0); return c; };
     return { R, res, imgL: toCanvas(imgL), imgR: toCanvas(imgR), minD, ws, wd: R.wd, ux, uy, tMean };
@@ -292,10 +336,27 @@
   function buildStatic() {
     staticLayers.tilesL = tiles("L-tiles");
     staticLayers.tilesR = tiles("R-tiles");
+    makeBld();
+    // 동대문구 바깥은 흐리게 가린다
+    const bnd = S.data.boundary;
+    if (bnd) {
+      const ring = bnd.geometry.coordinates[0];
+      staticLayers.mask = new PolygonLayer({ id: "mask", data: [{ p: [[[120, 33], [135, 33], [135, 43], [120, 43]], ring] }], getPolygon: (d) => d.p,
+        getFillColor: [238, 240, 243, 225], stroked: false, pickable: false, parameters: { depthCompare: "always", depthWriteEnabled: false } });
+      staticLayers.bline = new PathLayer({ id: "bline", data: [{ p: ring }], getPath: (d) => d.p, getColor: [20, 42, 82, 200], getWidth: 2, widthUnits: "pixels",
+        getDashArray: [6, 4], parameters: { depthCompare: "always" } });
+    }
+  }
+  // 건물 표시: 불투명 / 반투명 / 숨김
+  function makeBld() {
+    const mode = S.bldMode || "solid";
+    if (mode === "hide") { staticLayers.bld = null; return; }
+    const solid = mode === "solid";
     staticLayers.bld = new PolygonLayer({
-      id: "bld", data: S.data.buildings, getPolygon: (b) => b.p, extruded: true, wireframe: false,
-      getElevation: (b) => b.h || 3.3, getFillColor: [226, 229, 235], getLineColor: [255, 255, 255],
-      material: { ambient: 0.55, diffuse: 0.55, shininess: 8, specularColor: [40, 40, 40] }, pickable: false,
+      id: "bld-" + mode, data: S.data.buildings, getPolygon: (b) => b.p, extruded: true, wireframe: !solid,
+      getElevation: (b) => b.h || 3.3, getFillColor: solid ? [226, 229, 235] : [214, 219, 228, 70], getLineColor: [150, 160, 176, 90],
+      opacity: 1, material: { ambient: 0.55, diffuse: 0.55, shininess: 8, specularColor: [40, 40, 40] }, pickable: false,
+      parameters: solid ? {} : { depthWriteEnabled: false },
     });
   }
   function update() {
@@ -327,9 +388,11 @@
   }
   function draw() {
     const L = staticLayers, D = dynLayers;
-    const layers = [L.tilesL, L.tilesR, D.gL, D.gR, D.sL, D.sR, L.bld, D.pL, D.pR];
+    const solid = (S.bldMode || "solid") === "solid";
+    const layers = [L.tilesL, L.tilesR, L.mask, L.bline, D.gL, D.gR, D.sL, D.sR];
+    if (solid) layers.push(L.bld, D.pL, D.pR); else layers.push(D.pL, D.pR, L.bld);   // 반투명이면 건물을 마지막에 겹쳐 그린다
     if (wind) layers.push(wind.layer());
-    deckgl.setProps({ layers });
+    deckgl.setProps({ layers: layers.filter(Boolean) });
   }
 
   // 바람 입자 (풍향 표시용)
@@ -384,6 +447,9 @@
     $("lbl-r").textContent = mist.length ? `미스트 ${mist.length}개 구간 가동` : (counts.flush ? "고습으로 하부 살수만" : counts.night ? "야간 방열 살수 (공기 냉각 없음)" : "가동 조건 아님");
     const [lo, hi] = G.range;
     $("lg-bar").style.background = `linear-gradient(90deg, ${STOPS.map((c) => `rgb(${c.join(",")})`).join(",")})`;
+    $("lg-diff").hidden = !S.diff;
+    $("lg-dbar").style.background = `linear-gradient(90deg, ${DSTOPS.slice().reverse().map((c) => `rgb(${c.join(",")})`).join(",")})`;
+    $("lbl-r-title").textContent = S.diff ? "가동 − 현재 차이" : "열저감 시스템 가동";
     $("lg-ticks").innerHTML = Array.from({ length: hi - lo + 1 }, (_, i) => `<span>${lo + i}</span>`).filter((_, i, a) => a.length < 9 || i % 2 === 0).join("");
     $("lg-modes").innerHTML = ["mist", "flush", "night", "off", "passive"].map((m) => `<span><i style="background:${M.MODE[m].color}"></i>${M.MODE[m].label}</span>`).join("")
       + `<span><i style="background:#fff;border:1px solid #999;height:2px"></i>바람 입자</span>`;
@@ -410,11 +476,11 @@
 
   async function init() {
     const g = M.getJSON;
-    const [segments, sensors, buildings, replay, realtime, kma] = await Promise.all([
+    const [segments, sensors, buildings, replay, realtime, kma, boundary] = await Promise.all([
       g("data/segments.json", []), g("data/sensors.json", []), g("data/buildings_near.json", []),
-      g("data/replay.json", { days: [] }), g("data/realtime.json", {}), g("data/kma.json", {}),
+      g("data/replay.json", { days: [] }), g("data/realtime.json", {}), g("data/kma.json", {}), g("data/boundary.json", null),
     ]);
-    S.data = { segments, sensors, buildings, replay, realtime, kma };
+    S.data = { segments, sensors, buildings, replay, realtime, kma, boundary };
     prepare();
     const f0 = (location.search.match(/focus=(C[123])/) || [])[1] || "all";
     const vs = viewFor(f0);
@@ -451,7 +517,15 @@
       setVS({ ...viewFor(b.dataset.c), transitionDuration: 1200, transitionInterpolator: new FlyToInterpolator() });
     }));
     document.querySelectorAll("#focus button").forEach((x) => x.classList.toggle("on", x.dataset.c === f0));
-    const hasLive = realtime && realtime.sensors && realtime.sensors.length;
+    const hasLive = (realtime && realtime.sensors && realtime.sensors.length) || (kma && kma.ncst);
+    document.querySelectorAll("#bld button").forEach((b) => (b.onclick = () => {
+      S.bldMode = b.dataset.m; document.querySelectorAll("#bld button").forEach((x) => x.classList.toggle("on", x === b));
+      makeBld(); draw();
+    }));
+    document.querySelectorAll("#rmode button").forEach((b) => (b.onclick = () => {
+      S.diff = b.dataset.m === "diff"; document.querySelectorAll("#rmode button").forEach((x) => x.classList.toggle("on", x === b)); update();
+    }));
+    $("cv-btn").onclick = () => $("caveat").classList.toggle("open");
     $("v-live").disabled = !hasLive;
     if (!hasLive) $("v-live").title = "실시간 자료가 아직 없습니다";
     const setMode = (v) => {
@@ -465,7 +539,11 @@
     $("play").onclick = () => {
       if (S.playing) return stop();
       $("play").textContent = "일시정지"; $("play").classList.add("on");
-      S.playing = setInterval(() => { S.hour = (S.hour + 1) % 24; update(); }, 1600);
+      S.playing = setInterval(() => {
+        S.hour += 1;
+        if (S.hour > 23) { S.hour = 0; S.dayIdx = (S.dayIdx + 1) % S.data.replay.days.length; sel.value = String(S.dayIdx); }   // 자정이 지나면 다음 날로
+        update();
+      }, 1600);
     };
     const t0 = performance.now();
     update();

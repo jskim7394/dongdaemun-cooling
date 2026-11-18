@@ -84,6 +84,7 @@ def main():
     f_humi = pick(keys, [r"^AVG_HUM$", r"(AVG|MEAN).*HUM", r"HUM.*(AVG|MEAN)", r"평균.*습도", r"습도.*평균", r"HUM", r"습도"])
     f_gu = pick(keys, [r"^CGG$", r"자치구", r"GU", r"ADDR", r"주소"])
     f_no = pick(keys, [r"DATA_?NO"])
+    f_reg = pick(keys, [r"^REG_DT$", r"REG"])
     fields = {"serial": f_serial, "time": f_time, "temp": f_temp, "humi": f_humi, "gu": f_gu, "data_no": f_no}
     DATA.joinpath("_debug_fields.json").write_text(
         json.dumps({"service": SERVICE, "total": total, "keys": keys, "detected": fields, "sample": rows[0]},
@@ -95,6 +96,10 @@ def main():
     sensors = json.loads(DATA.joinpath("sensors.json").read_text(encoding="utf-8"))
     known = {s["serial"] for s in sensors}
 
+    # 서울시 API에 마지막으로 등록된 시각 (자료 지연 확인용)
+    regs = [re.sub(r"\D", "", str(r.get(f_reg, "")))[:12] for r in rows] if f_reg else []
+    latest_reg = max((x for x in regs if len(x) >= 10), default=None)
+    newest_any = max((re.sub(r"\D", "", str(r.get(f_time, "")))[:10] for r in rows), default=None)
     latest, hourly = {}, {}
     for r in rows:
         serial = str(r.get(f_serial, "")).strip()
@@ -147,6 +152,8 @@ def main():
         "updated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "latest_obs": max((v["stamp"] for v in latest.values()), default=None),
         "rows_scanned": len(rows),
+        "latest_reg": latest_reg,          # API 등록 시각(YYYYMMDDHHMM)
+        "newest_any_gu": newest_any,       # 서울 전체 센서 중 가장 최근 측정 시각
         "sensors": out_sensors,
         "series": series,
         "hist": hist,
@@ -155,7 +162,7 @@ def main():
                                               encoding="utf-8")
     valid = sum(1 for s in out_sensors if s["t"] is not None)
     print(f"완료: 전체 {total}행 중 {len(rows)}행 확인, 동대문구 센서 {len(out_sensors)}대(정상값 {valid}대), "
-          f"최신 관측 {result['latest_obs']}")
+          f"최신 관측 {result['latest_obs']}, 서울 전체 최신 측정 {newest_any}, API 등록 {latest_reg}")
 
 
 if __name__ == "__main__":
