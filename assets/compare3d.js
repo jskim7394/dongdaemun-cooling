@@ -17,6 +17,7 @@
   const ZLEV = [0.3, 1, 1.8, 2.6, 3.6, 5, 7];
   const WET = new Set(["mist", "flush", "night"]);
   const SURF_DROP = 7;
+  const PAVE_SURF = 6;   // 쿨페이브먼트 노면온도 하강 (Middel 외 2020)
   const RES = 3;          // 지면 래스터 해상도(m)
   const PT = 3;           // 3차원 점 간격(m, 래스터 해상도의 배수)
 
@@ -70,9 +71,10 @@
     for (let i = 0; i < nx * ny; i++) G.bmask[i] = md[i * 4 + 3] > 100 ? 1 : 0;
     G.bctx = cv; // 지면 래스터에서 건물 부분 지우기용
 
-    // 보행축까지 거리 (chamfer 거리변환)
+    // 보행축까지 거리 (chamfer 거리변환). 쿨페이브먼트 구간까지 거리는 따로
+    const distField = (list) => {
     const D = new Float32Array(nx * ny).fill(1e9);
-    segs.forEach((s) => {
+    list.forEach((s) => {
       for (let i = 0; i < s.coords.length - 1; i++) {
         const a = toXY(...s.coords[i]), b = toXY(...s.coords[i + 1]);
         const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (RES / 2));
@@ -96,6 +98,10 @@
       if (y < ny - 1) { v = Math.min(v, D[i + nx] + d1); if (x < nx - 1) v = Math.min(v, D[i + nx + 1] + d2); if (x > 0) v = Math.min(v, D[i + nx - 1] + d2); }
       D[i] = v;
     }
+      return D;
+    };
+    const D = distField(segs);
+    G.Dpave = distField(segs.filter((x) => x.prescription.includes("쿨페이브먼트")));
     G.alpha = new Uint8Array(nx * ny);
     for (let i = 0; i < nx * ny; i++) {
       const f = D[i] <= 40 ? 1 : D[i] >= 170 ? 0 : 1 - (D[i] - 40) / 130;
@@ -133,7 +139,7 @@
       const i = py * nx + px;
       if (D[i] > 25 || G.bmask[i]) continue;
       const x = x0 + (px + 0.5) * RES, y = y0 + (ny - 1 - py + 0.5) * RES;
-      cells.set(i, { x, y, nz: [], d: D[i], seg: -1 });
+      cells.set(i, { x, y, nz: [], d: D[i], seg: -1, pave: G.Dpave[i] <= 12 });
     }
     cells.forEach((c) => G.noz.forEach((n, ni) => { if (Math.hypot(c.x - n.x, c.y - n.y) <= K.reach) c.nz.push(ni); }));
     // 가장 가까운 구간 (바닥 살수 범위 판정용)
@@ -275,6 +281,7 @@
     G.range = [lo, hi];
 
     // 5) 지면 래스터 (보행 높이 1.5m 기온)
+    const paveAir = R.hour >= 10 && R.hour < 18 ? -0.5 : -0.1;   // Middel 외(2020): 낮 0.5℃, 밤 0.1℃
     const imgL = new ImageData(nx, ny), imgR = new ImageData(nx, ny);
     const rgb = [0, 0, 0];
     let minD = 0;
@@ -285,6 +292,7 @@
       colorAt(t, lo, hi, rgb, 0);
       imgL.data[o] = rgb[0]; imgL.data[o + 1] = rgb[1]; imgL.data[o + 2] = rgb[2]; imgL.data[o + 3] = a;
       let t2 = t;
+      if (G.Dpave[i] <= 12) t2 += paveAir;   // 쿨페이브먼트 기온 효과
       const e = G.near.get(i);
       if (e) { const d = dT(e.nz, e.x, e.y, 1.5); t2 += d; if (d < minD) minD = d; }
       if (S.diff) {   // 차이 보기: 가동 − 현재
@@ -305,8 +313,10 @@
       const surf = excess * Math.exp(-z / 0.35);    // 지면 가열층
       // 바닥 살수: 보도·차도 가장자리(보행축 선 12m 안)의 노면온도를 최대 7℃ 낮춘다 (Hendel 외 2015 실측 6~7.5℃)
       const wet = c.seg >= 0 && c.d <= 12 && WET.has(res[c.seg].mode);
-      const surfOn = (wet ? Math.max(0, excess - SURF_DROP) : excess) * Math.exp(-z / 0.35);
-      const tb = ta + surf, ton = ta + surfOn + dT(c.nz, c.x, c.y, z);
+      let exOn = c.pave ? Math.max(0, excess - PAVE_SURF) : excess;
+      if (wet) exOn = Math.max(0, exOn - SURF_DROP);
+      const surfOn = exOn * Math.exp(-z / 0.35);
+      const tb = ta + surf, ton = ta + surfOn + dT(c.nz, c.x, c.y, z) + (c.pave ? paveAir : 0);
       colorAt(tb, lo, hi, P.col, k * 4);
       if (S.diff) diffColor(ton - tb, P.colOn, k * 4); else colorAt(ton, lo, hi, P.colOn, k * 4);
       // 배경과 차이가 있는 점만 보이게: 왼쪽은 지면 가열층, 오른쪽은 지면 가열층 + 냉각 플룸
@@ -442,7 +452,8 @@
       <div>지면온도 <b>${R.tg != null ? fmt(R.tg, 1, "℃") : "자료 없음"}</b> <span style="color:#7A8292">(ASOS)</span></div>
       <div>미스트 가동 <b>${mist.length}</b> / ${C.res.filter((r) => r.seg.seg_type !== "D").length} 구간</div>
       <div>구간 평균 기온 저감 <b>${dTa != null ? fmt(dTa, 1, "℃") : "–"}</b></div>
-      <div>노즐 주변 최대 저감 <b>${C.minD < -0.05 ? fmt(C.minD, 1, "℃") : "–"}</b> <span style="color:#7A8292">(1.5m)</span></div>`;
+      <div>노즐 주변 최대 저감 <b>${C.minD < -0.05 ? fmt(C.minD, 1, "℃") : "–"}</b> <span style="color:#7A8292">(1.5m)</span></div>
+      <div>쿨페이브먼트 <b>${C.res.filter((r) => r.seg.prescription.includes("쿨페이브먼트")).length}개 구간</b> · 기온 ${R.hour >= 10 && R.hour < 18 ? "−0.5" : "−0.1"}℃, 노면 −6℃</div>`;
     $("lbl-l").textContent = R.label;
     $("lbl-r").textContent = mist.length ? `미스트 ${mist.length}개 구간 가동` : (counts.flush ? "고습으로 하부 살수만" : counts.night ? "야간 방열 살수 (공기 냉각 없음)" : "가동 조건 아님");
     const [lo, hi] = G.range;

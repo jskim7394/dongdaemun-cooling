@@ -25,7 +25,8 @@ data/hydrants.json              동대문구 소화전
 data/trees.json                 동대문구 가로수 (2026 서울시 가로수 위치정보)
 data/buildings_near.json        보행축 260m 안 건물 (국토부 GIS건물통합정보, 3D용)
 data/population.json            250m 격자 생활인구
-data/lst.json                   Landsat 8 지표면온도 (2026-06-16, 08-03, 동대문구, 구름 제외)
+data/lst.json                   Landsat 8 지표면온도 (열 취약성 계산 입력, 화면에는 표시하지 않음)
+data/vuln.json                  30m 열 취약성 지수 (scripts/build_vuln.py)
 data/solweig.json               보행축 20m 안 2m 격자 그림자·SVF·토지피복 (scripts/solweig_pre.py)
 data/boundary.json              동대문구 경계 (southkorea/seoul-maps, 지도 바깥 가림용)
 data/replay.json                여름 재생 자료

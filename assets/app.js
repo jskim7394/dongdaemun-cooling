@@ -17,7 +17,7 @@
   const focusName = () => CNAME[S.focus];
 
   // ---------------------------------------------------------------- 지도
-  let map, layerHyd, layerShade, layerTree, layerSdot, layerSeg, layerPop, layerFire;
+  let layerHL, map, layerHyd, layerShade, layerTree, layerSdot, layerSeg, layerPop, layerFire;
   function initMap() {
     const bnd = S.data.boundary;
     map = L.map("map", { zoomControl: true, scrollWheelZoom: false, preferCanvas: true, maxZoom: 19, minZoom: 12 }).setView([37.5835, 127.052], 14);
@@ -35,7 +35,7 @@
       map.setMaxBounds(L.latLngBounds(ring).pad(0.35));
     }
     map.createPane("popPane"); map.getPane("popPane").style.zIndex = 340;
-    map.createPane("lstPane"); map.getPane("lstPane").style.zIndex = 335; map.getPane("lstPane").style.pointerEvents = "none";
+    map.createPane("vulnPane"); map.getPane("vulnPane").style.zIndex = 336; map.getPane("vulnPane").style.pointerEvents = "none";
     map.createPane("heatPane"); map.getPane("heatPane").style.zIndex = 345; map.getPane("heatPane").style.pointerEvents = "none";
     layerPop = L.geoJSON(S.data.population || { type: "FeatureCollection", features: [] }, {
       pane: "popPane",
@@ -48,7 +48,7 @@
     });
     layerHyd = L.layerGroup(); layerTree = L.layerGroup();
     layerShade = L.layerGroup().addTo(map); layerSdot = L.layerGroup().addTo(map);
-    layerSeg = L.layerGroup().addTo(map); layerFire = L.layerGroup().addTo(map);
+    layerHL = L.layerGroup().addTo(map); layerSeg = L.layerGroup().addTo(map); layerFire = L.layerGroup().addTo(map);
 
     (S.data.hydrants || []).forEach((h) => {
       L.circleMarker([h.lat, h.lon], { radius: h.type === 1 ? 2.6 : 2, weight: 0, fillOpacity: 0.55, fillColor: h.type === 1 ? "#1D3A66" : "#B9C2D0" })
@@ -59,7 +59,7 @@
         .bindTooltip("가로수 · " + t[2], { className: "t-lbl" }).addTo(layerTree);
     });
     (S.data.shades || []).forEach((s) => {
-      L.circleMarker([s.lat, s.lon], { radius: 4, weight: 1.5, color: "#2E7D4F", fillColor: "#fff", fillOpacity: 1 })
+      L.circleMarker([s.lat, s.lon], { radius: 3, weight: 1.2, color: "#2E7D4F", fillColor: "#fff", fillOpacity: 1 })
         .bindTooltip(s.type + " · " + s.name, { className: "t-lbl" }).addTo(layerShade);
     });
     S.data.segments.forEach((seg, i) => {
@@ -76,12 +76,20 @@
     $("lyr-sdot").onchange = (e) => toggle(layerSdot, e.target.checked);
     $("lyr-pop").onchange = (e) => toggle(layerPop, e.target.checked);
 
-    $("legend").innerHTML = ["mist", "flush", "night", "off", "passive", "fire"].map((k) => `<span><i style="background:${MODE[k].color}"></i>${MODE[k].label}</span>`).join("")
-      + `<span><i style="background:#fff;border:1.5px solid #2E7D4F;height:9px;width:9px;border-radius:50%"></i>그늘막</span>`
-      + `<span><i style="background:#fff;border:2px solid #142A52;height:10px;width:10px;border-radius:50%"></i>기온 센서(S-DoT)</span>`
-      + `<span><i style="background:linear-gradient(90deg,#EEF2F8,#41679F);width:28px"></i>생활인구 (짙을수록 많음)</span>`;
+    ["lyr-shade", "lyr-hyd", "lyr-tree", "lyr-sdot", "lyr-pop"].forEach((id) => $(id).addEventListener("change", renderLegend));
+    renderLegend();
 
     map.on("click", (e) => { if (!S.fireMode) return; S.fire = [e.latlng.lat, e.latlng.lng]; render(); });
+  }
+  function renderLegend() {
+    const items = ["mist", "flush", "night", "off", "passive"].map((k) => `<span><i style="background:${MODE[k].color}"></i>${MODE[k].label}</span>`);
+    if (S.fire) items.push(`<span><i style="background:${MODE.fire.color}"></i>${MODE.fire.label}</span>`);
+    if ($("lyr-shade").checked) items.push(`<span><i class="dot-i" style="border:1.5px solid #2E7D4F;background:#fff"></i>그늘막</span>`);
+    if ($("lyr-hyd").checked) items.push(`<span><i class="dot-i" style="background:#1D3A66"></i>지상 소화전</span><span><i class="dot-i" style="background:#B9C2D0"></i>지하 소화전</span>`);
+    if ($("lyr-tree").checked) items.push(`<span><i class="dot-i" style="background:#3E8E5A"></i>가로수</span>`);
+    if ($("lyr-sdot").checked) items.push(`<span><i class="dot-i" style="border:1.5px solid #142A52;background:#fff"></i>기온 센서</span>`);
+    if ($("lyr-pop").checked) items.push(`<span><i style="background:linear-gradient(90deg,#EEF2F8,#41679F);width:28px"></i>생활인구</span>`);
+    $("legend").innerHTML = items.join("");
   }
   function toggle(layer, on) { on ? layer.addTo(map) : map.removeLayer(layer); }
 
@@ -95,12 +103,14 @@
     render();
     renderForecast();
   }
-  function selectSeg(i) {
+  function selectSeg(i, zoom = false) {
     const seg = S.data.segments[i];
-    if (!inFocus(seg)) { S.selected = i; focusCorridor(seg.corridor_id); }
+    if (!inFocus(seg)) { S.selected = i; focusCorridor(seg.corridor_id, false); }
     else { S.selected = i; render(); }
-    const row = document.querySelector(`#seg-body tr[data-i="${i}"]`);
-    if (row) row.scrollIntoView({ block: "nearest" });
+    if (zoom) {
+      $("s1").scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(() => map.fitBounds(L.latLngBounds(seg.coords).pad(0.8), { maxZoom: 18 }), 350);
+    }
   }
 
   // ---------------------------------------------------------------- 생활인구
@@ -155,7 +165,9 @@
       let mode = M.modeOf(seg, ta, rh, R.hour);
       if (withFire && S.fire && seg.seg_type !== "D" && seg.coords.some((c) => distM(c, S.fire) <= 500)) mode = "fire";
       const e = M.effect(ta, rh, M.effFor(seg));
-      return { seg, mode, ta, rh, tw: e.tw, app: M.apparent(ta, e.tw), dTa: mode === "mist" ? e.dTa : 0, dTapp: mode === "mist" ? e.dTapp : 0 };
+      const pave = seg.prescription.includes("쿨페이브먼트");
+      const paveDT = pave ? (R.hour >= 10 && R.hour < 18 ? -0.5 : -0.1) : 0;   // Middel 외(2020): 낮 0.5℃, 밤 0.1℃
+      return { seg, mode, ta, rh, tw: e.tw, app: M.apparent(ta, e.tw), dTa: mode === "mist" ? e.dTa : 0, dTapp: mode === "mist" ? e.dTapp : 0, pave, paveDT };
     });
   }
   function hottestIdx() {
@@ -174,10 +186,17 @@
 
     results.forEach((r, i) => {
       const on = inFocus(r.seg);
-      const thin = $("lyr-utci").checked;   // 열 스트레스를 볼 때는 선을 가늘게
+      const thin = S.ana !== "none";   // 분석 레이어를 볼 때는 선을 가늘게
       S.segLayers[i].setStyle({ color: MODE[r.mode].color, weight: thin ? (S.selected === i ? 4 : 2) : S.selected === i ? 12 : on ? 7 : 5, opacity: on ? 0.95 : 0.3, dashArray: r.mode === "fire" ? "2 9" : null });
     });
 
+    layerHL.clearLayers();
+    if (S.selected != null) {
+      const sc = S.data.segments[S.selected].coords;
+      L.polyline(sc, { color: "#142A52", weight: 22, opacity: 0.25, lineCap: "round", interactive: false }).addTo(layerHL);
+      L.polyline(sc, { color: "#FFD23F", weight: 15, opacity: 1, lineCap: "round", interactive: false }).addTo(layerHL)
+        .bindTooltip(`선택: ${S.data.segments[S.selected].seg_id}`, { permanent: true, direction: "top", className: "t-sel", offset: [0, -8] });
+    }
     layerFire.clearLayers();
     if (S.fire) {
       L.circle(S.fire, { radius: 500, color: "#C0392B", weight: 1.5, fillOpacity: 0.06, dashArray: "4 4", interactive: false }).addTo(layerFire);
@@ -188,9 +207,8 @@
     const valid = new Map(R.sensors.map((s) => [s.serial, s]));
     S.data.sensors.forEach((s) => {
       const v = valid.get(s.serial);
-      const m = L.circleMarker([s.lat, s.lon], { radius: 6, weight: 2, color: v ? "#142A52" : "#A3AAB6", fillColor: "#fff", fillOpacity: 1, dashArray: v ? null : "2 2" });
+      const m = L.circleMarker([s.lat, s.lon], { radius: 3.5, weight: 1.5, color: v ? "#142A52" : "#A3AAB6", fillColor: v ? "#fff" : "#EEF0F3", fillOpacity: 1 });
       m.bindTooltip(`기온 센서 ${s.serial}<br>${s.addr}<br>${v ? `${fmt(v.t, 1, "℃")} · ${fmt(v.rh, 0, "%")}` : "정상값 없음"}`, { className: "t-lbl" });
-      if (v) m.bindTooltip(fmt(v.t, 1, "℃"), { permanent: true, direction: "top", offset: [0, -6], className: "t-lbl" });
       m.addTo(layerSdot);
     });
 
@@ -224,7 +242,9 @@
     renderStamp(R);
     renderVerdict(R, F, { ta, rh, nMist, nFire });
     renderEffect(R, results, F);
-    drawUtci(R, results);
+    drawCool(R, results);
+    drawVuln();
+    renderLegend();
     const fu = TH ? focusUtci(R, results) : null;
     $("k-utci").textContent = fu ? `${fu.base.toFixed(1)}` : "–";
     $("k-utci-note").textContent = fu ? `${window.UTCI.category(fu.base)} · 시스템 가동 시 ${fu.on.toFixed(1)}${fu.shade != null ? ` · 그늘 ${Math.round(fu.shade * 100)}%` : ""}` : (TH ? "일사 자료가 있는 여름 재생에서 계산합니다" : "");
@@ -383,13 +403,13 @@
     for (let i = 0; i < n; i++) {
       const [x, y] = M.xy(g.lat[i], g.lon[i]); px[i] = x; py[i] = y;
       let bd = 1e9, bs = 0;
-      lines.forEach((L, si) => { for (let j = 0; j < L.length - 1; j++) {
+      if (g.seg) { pseg[i] = g.seg[i]; } else lines.forEach((L, si) => { for (let j = 0; j < L.length - 1; j++) {
         const [ax, ay] = L[j], [bx, by] = L[j + 1], dx = bx - ax, dy = by - ay;
         const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
         const d = Math.hypot(x - ax - t * dx, y - ay - t * dy);
         if (d < bd) { bd = d; bs = si; }
       } });
-      pseg[i] = bs;
+      if (!g.seg) pseg[i] = bs;
       poleNear[i] = P.map((p, k) => (Math.abs(p.x - x) < 40 && Math.abs(p.y - y) < 40 ? k : -1)).filter((k) => k >= 0);
       const key = Math.floor(x / 10) + "," + Math.floor(y / 10);
       (hash.get(key) || hash.set(key, []).get(key)).push(i);
@@ -416,7 +436,8 @@
     if (!met) return null;
     const key = `${R.day.date}|${R.hour}|${on}|${results.map((r) => r.mode[0]).join("")}`;
     if (fieldCache.has(key)) return fieldCache.get(key);
-    const g = TH.g, n = g.n, out = new Float32Array(n), preps = new Map();
+    const g = TH.g, n = g.n, out = new Float32Array(n), preps = new Map(), dts = new Float32Array(n);
+    out.dT = dts;
     let A = null, caps = null, w = null;
     if (on) {
       w = M.wind(R.wind && R.wind.ws, R.wind && R.wind.wd);
@@ -428,14 +449,17 @@
       if (r.ta == null) { out[i] = NaN; continue; }
       let p = preps.get(si);
       if (!p) { p = window.Thermal.prep({ ...met, ta: r.ta, rh: r.rh }); preps.set(si, p); }
-      let dT = 0, wet = false;
+      let dT = 0, wet = false, pave = false;
       if (on) {
         let cap = 0;
         TH.poleNear[i].forEach((k) => { const pl = TH.P[k]; if (A[pl.seg]) { dT += A[pl.seg] * M.kern(pl, TH.px[i], TH.py[i], 1.5, w); cap = Math.min(cap, caps[pl.seg]); } });
         if (dT < cap) dT = cap;
         wet = g.dist[i] <= 12 && WETM.has(r.mode);
+        pave = g.dist[i] <= 12 && r.pave;
+        if (pave) dT += r.paveDT;
+        dts[i] = dT;
       }
-      out[i] = window.Thermal.utciAt(p, i, dT, wet);
+      out[i] = window.Thermal.utciAt(p, i, dT, wet, pave);
     }
     if (fieldCache.size > 40) fieldCache.clear();
     fieldCache.set(key, out);
@@ -443,82 +467,123 @@
   }
   const UTCI_C = [[46, [164, 22, 26]], [38, [228, 87, 46]], [32, [242, 158, 76]], [26, [246, 213, 92]], [-99, [156, 197, 161]]];
   const utciRGB = (u) => UTCI_C.find(([t]) => u > t)[1];
-  let utciOverlay = null, lstOverlay = null, LST = null;
+  let coolOverlay = null, vulnOverlay = null, VU = null;
   function cornersBounds(cs) {
     const la = cs.map((c) => c[1]), lo = cs.map((c) => c[0]);
     return [[Math.min(...la), Math.min(...lo)], [Math.max(...la), Math.max(...lo)]];
   }
-  function drawUtci(R, results) {
-    const on = $("lyr-utci").checked;
-    $("utci-tools").hidden = !on;
-    if (!on || !TH) { if (utciOverlay) { map.removeLayer(utciOverlay); utciOverlay = null; } return; }
-    const field = utciField(R, results, S.utciMode === "on");
-    if (!field) {
-      if (utciOverlay) { map.removeLayer(utciOverlay); utciOverlay = null; }
-      $("utci-read").innerHTML = "일사 자료가 필요해 <b>2026년 여름 재생</b>에서만 볼 수 있습니다.";
-      return;
-    }
-    const g = TH.g, sw = g.sw, cv = document.createElement("canvas");
-    cv.width = sw.w; cv.height = sw.h;
-    const ctx = cv.getContext("2d"), img = ctx.createImageData(sw.w, sw.h);
-    for (let i = 0; i < g.n; i++) {
-      if (Number.isNaN(field[i]) || !inFocus(S.data.segments[TH.pseg[i]])) continue;
-      const o = (g.row[i] * sw.w + g.col[i]) * 4, c = utciRGB(field[i]);
-      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 225;
-    }
+  const DIFF_C = [[247, 251, 255], [198, 219, 239], [107, 174, 214], [33, 113, 181], [8, 48, 107]];
+  function ramp(stops, u) {
+    u = Math.max(0, Math.min(1, u)); const f = u * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(f)), w = f - k;
+    return [0, 1, 2].map((j) => Math.round(stops[k][j] + (stops[k + 1][j] - stops[k][j]) * w));
+  }
+  function overlayFrom(pixels, w, h, bounds, old, pane) {
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d"), img = ctx.createImageData(w, h);
+    pixels(img.data);
     ctx.putImageData(img, 0, 0);
     const url = cv.toDataURL();
-    if (!utciOverlay) utciOverlay = L.imageOverlay(url, cornersBounds(sw.corners), { pane: "heatPane", interactive: false }).addTo(map);
-    else utciOverlay.setUrl(url);
-    S.utciField = field;
-    $("utci-read").innerHTML = legendHtml(["≤26", "26~32", "32~38", "38~46", ">46"], UTCI_C.slice().reverse().map((c) => c[1]), ["없음", "중간", "강함", "매우 강함", "극심"]) + '<span class="muted" id="utci-cur">지도 위에 커서를 올리면 그 지점 값이 나옵니다.</span>';
+    if (old) { old.setUrl(url); return old; }
+    return L.imageOverlay(url, bounds, { pane, interactive: false }).addTo(map);
+  }
+  // 냉각 효과: 저감량(UTCI 차이) / 가동 전 / 가동 후
+  function drawCool(R, results) {
+    const on = S.ana === "cool";
+    $("cool-tools").hidden = !on;
+    if (!on || !TH) { if (coolOverlay) { map.removeLayer(coolOverlay); coolOverlay = null; } return; }
+    const fb = utciField(R, results, false), fo = fb && utciField(R, results, true);
+    if (!fb) {
+      if (coolOverlay) { map.removeLayer(coolOverlay); coolOverlay = null; }
+      $("cool-read").innerHTML = "햇빛 세기(일사) 자료가 필요해 <b>2026년 여름 재생</b>에서만 계산됩니다." + summerLink("여름 가장 더운 날 14시 보기");
+      bindSummer($("cool-read"));
+      return;
+    }
+    const mode = S.coolMode || "diff", g = TH.g, sw = g.sw;
+    coolOverlay = overlayFrom((d) => {
+      for (let i = 0; i < g.n; i++) {
+        if (Number.isNaN(fb[i]) || !inFocus(S.data.segments[TH.pseg[i]])) continue;
+        const o = (g.row[i] * sw.w + g.col[i]) * 4;
+        let c, a = 225;
+        if (mode === "diff") { const dv = fb[i] - fo[i]; c = ramp(DIFF_C, dv / 4); a = dv < 0.1 ? 60 : 235; }
+        else c = utciRGB(mode === "on" ? fo[i] : fb[i]);
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = a;
+      }
+    }, sw.w, sw.h, cornersBounds(sw.corners), coolOverlay, "heatPane");
+    S.cool = { fb, fo };
+    const leg = mode === "diff"
+      ? legendHtml(["0", "1", "2", "3", "4℃ 이상"], [0, 0.25, 0.5, 0.75, 1].map((u) => ramp(DIFF_C, u))) + '<span class="muted">UTCI(체감 열 스트레스)가 가동으로 낮아진 정도</span>'
+      : legendHtml(["≤26", "26~32", "32~38", "38~46", ">46"], UTCI_C.slice().reverse().map((c) => c[1]), ["없음", "중간", "강함", "매우 강함", "극심"]);
+    $("cool-read").innerHTML = leg + '<span class="muted" id="cool-cur">지도에 커서를 올리면 그 지점 값이 나옵니다.</span>';
   }
   function legendHtml(labels, cols, names) {
     return '<span class="mini-legend">' + labels.map((l, i) => `<span><i style="background:rgb(${cols[i].join(",")})"></i>${l}${names ? ` ${names[i]}` : ""}</span>`).join("") + "</span>";
   }
-  // 위성 지표면온도
-  const LST_BINS = [38, 41, 44, 47, 50], LST_COLS = [[255, 241, 193], [253, 212, 158], [252, 158, 107], [239, 106, 76], [201, 58, 58], [142, 27, 43]];
-  function lstInit() {
-    const d = S.data.lst;
+  // 열 취약성 (30m 연속값)
+  const VULN_C = [[255, 247, 236], [253, 212, 158], [252, 141, 89], [215, 48, 31], [127, 0, 0]];
+  function vulnInit() {
+    const d = S.data.vuln;
     if (!d) return;
-    LST = { ...d, arrs: d.dates.map((x) => new Int16Array(Uint8Array.from(atob(x.data), (c) => c.charCodeAt(0)).buffer)), cur: d.dates.length - 1 };
-    $("lst-dates").innerHTML = d.dates.map((x, i) => `<button data-i="${i}" class="${i === LST.cur ? "on" : ""}">${+x.date.slice(5, 7)}월 ${+x.date.slice(8, 10)}일</button>`).join("");
-    document.querySelectorAll("#lst-dates button").forEach((b) => (b.onclick = () => { LST.cur = +b.dataset.i; document.querySelectorAll("#lst-dates button").forEach((x) => x.classList.toggle("on", x === b)); drawLst(); }));
-    $("lyr-lst").onchange = drawLst;
+    const dec = (k) => Uint8Array.from(atob(d[k]), (c) => c.charCodeAt(0));
+    VU = { ...d, v0: dec("v0"), v1: dec("v1"), hz: dec("hz"), ex: dec("ex"), se: dec("se"), c0: dec("c0"), c1: dec("c1") };
   }
-  function drawLst() {
-    const on = $("lyr-lst").checked;
-    $("lst-tools").hidden = !on;
-    if (!on || !LST) { if (lstOverlay) { map.removeLayer(lstOverlay); lstOverlay = null; } return; }
-    const a = LST.arrs[LST.cur], cv = document.createElement("canvas");
-    cv.width = LST.w; cv.height = LST.h;
-    const ctx = cv.getContext("2d"), img = ctx.createImageData(LST.w, LST.h);
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] === -32768) continue;
-      const v = a[i] / 10; let k = 0; while (k < LST_BINS.length && v >= LST_BINS[k]) k++;
-      const c = LST_COLS[k]; img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 200;
-    }
-    ctx.putImageData(img, 0, 0);
-    const [w, s, e, n] = LST.bounds, url = cv.toDataURL();
-    if (!lstOverlay) lstOverlay = L.imageOverlay(url, [[s, w], [n, e]], { pane: "lstPane", interactive: false }).addTo(map);
-    else lstOverlay.setUrl(url);
-    const dd = LST.dates[LST.cur];
-    $("lst-read").innerHTML = legendHtml(["<38", "38~41", "41~44", "44~47", "47~50", "≥50℃"], LST_COLS) +
-      `<span class="muted" id="lst-cur">Landsat 8 · ${dd.date} 오전 11시 10분 · 동대문구 중앙값 ${dd.median}℃</span>`;
+  function drawVuln() {
+    const on = S.ana === "vuln";
+    $("vuln-tools").hidden = !on;
+    if (!on || !VU) { if (vulnOverlay) { map.removeLayer(vulnOverlay); vulnOverlay = null; } return; }
+    const mode = S.vulnMode || "v0", [w, s, e, n] = VU.bounds;
+    vulnOverlay = overlayFrom((d) => {
+      for (let i = 0; i < VU.w * VU.h; i++) {
+        if (VU.v0[i] === 255) continue;
+        let c, a = 200;
+        if (mode === "diff") { const dv = (VU.v0[i] - VU.v1[i]) / 250; c = ramp(DIFF_C, dv / 0.2); a = dv < 0.005 ? 0 : 230; }
+        else c = ramp(VULN_C, VU[mode][i] / 250);
+        d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = a;
+      }
+    }, VU.w, VU.h, [[s, w], [n, e]], vulnOverlay, "vulnPane");
+    $("vuln-read").innerHTML = (mode === "diff"
+      ? legendHtml(["조금", "", "", "", "크게"], [0, 0.25, 0.5, 0.75, 1].map((u) => ramp(DIFF_C, u))) + '<span class="muted">시스템 도입으로 취약성이 낮아진 곳</span>'
+      : legendHtml(["낮음", "", "", "", "높음"], [0, 0.25, 0.5, 0.75, 1].map((u) => ramp(VULN_C, u))) + '<span class="muted">뜨거운 곳·사람 많은 곳·고령층 많은 곳일수록 높고, 그늘·가로수·냉각시설이 있으면 낮아집니다</span>')
+      + '<span class="muted" id="vuln-cur"></span>';
+  }
+  // 시범 우선순위: 열 취약성 × 가동 시 UTCI 저감 ÷ 사업비 (여름 가장 더운 날 14시 기준)
+  function computePriority() {
+    if (!TH || !VU || !S.data.replay.days.length) return;
+    const R = readingsFor("replay", hottestIdx(), 14), res = resultsFor(R, false);
+    const fb = utciField(R, res, false), fo = utciField(R, res, true);
+    if (!fb) return;
+    const n = S.data.segments.length, dU = new Float64Array(n), cnt = new Float64Array(n);
+    for (let i = 0; i < TH.g.n; i++) { if (Number.isNaN(fb[i])) continue; dU[TH.pseg[i]] += fb[i] - fo[i]; cnt[TH.pseg[i]]++; }
+    const [w, s0, e0, nn] = VU.bounds;
+    const vAt = (la, lo) => { const c = Math.floor((lo - w) / (e0 - w) * VU.w), r = Math.floor((nn - la) / (nn - s0) * VU.h), v = VU.v0[r * VU.w + c]; return v === 255 ? null : v / 250; };
+    const rows = S.data.segments.map((seg, si) => {
+      const vs = seg.coords.map(([la, lo]) => vAt(la, lo)).filter((v) => v != null);
+      const v = vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0;
+      const d = cnt[si] ? dU[si] / cnt[si] : 0;
+      return { si, v, dU: d, raw: v * Math.max(0, d) / (seg.capex_krw / 1e7) };
+    });
+    const mx = Math.max(...rows.map((r) => r.raw)) || 1;
+    rows.forEach((r) => (r.score = Math.round(r.raw / mx * 100)));
+    [...rows].sort((a, b) => b.raw - a.raw).forEach((r, k) => (r.rank = k + 1));
+    S.prio = rows;
+    const top = [...rows].sort((a, b) => a.rank - b.rank).slice(0, 3).map((r) => S.data.segments[r.si].seg_id);
+    $("prio-top").innerHTML = `시범 우선순위 상위: <b>${top.join(", ")}</b>`;
   }
   function onMapMove(e) {
     const { lat, lng } = e.latlng;
-    if (LST && $("lyr-lst").checked && $("lst-cur")) {
-      const [w, s, eE, n] = LST.bounds, c = Math.floor((lng - w) / (eE - w) * LST.w), r = Math.floor((n - lat) / (n - s) * LST.h);
-      const v = c >= 0 && c < LST.w && r >= 0 && r < LST.h ? LST.arrs[LST.cur][r * LST.w + c] : -32768;
-      $("lst-cur").textContent = v === -32768 ? "동대문구 밖이거나 구름" : `커서 위치 지표면온도 ${(v / 10).toFixed(1)}℃`;
+    if (S.ana === "vuln" && VU && $("vuln-cur")) {
+      const [w, s0, e0, n] = VU.bounds, c = Math.floor((lng - w) / (e0 - w) * VU.w), r = Math.floor((n - lat) / (n - s0) * VU.h), i = r * VU.w + c;
+      if (c >= 0 && c < VU.w && r >= 0 && r < VU.h && VU.v0[i] !== 255) {
+        const pc = (a) => Math.round(a[i] / 2.5);
+        $("vuln-cur").textContent = `커서 위치: 취약성 ${pc(VU.v0)} → 도입 후 ${pc(VU.v1)} (지표면온도 상위 ${100 - pc(VU.hz)}% · 생활인구 상위 ${100 - pc(VU.ex)}% · 고령 비중 상위 ${100 - pc(VU.se)}% · 대응력 ${pc(VU.c0)}→${pc(VU.c1)})`;
+      } else $("vuln-cur").textContent = "";
     }
-    if (TH && S.utciField && $("lyr-utci").checked && $("utci-cur")) {
+    if (S.ana === "cool" && TH && S.cool && $("cool-cur")) {
       const [x, y] = M.xy(lat, lng), ids = nearPix(x, y, 3);
       if (ids.length) {
-        const i = ids[0], u = S.utciField[i], sh = TH.g.shade(window.Thermal.prep({ doy: 213, hour: S.hour, ta: 30, rh: 50, ws: 1, sr: 0 }).di, TH.g.sw.hours.indexOf(S.hour), i);
-        $("utci-cur").textContent = `커서 위치 UTCI ${u.toFixed(1)} · ${window.UTCI.category(u)} · ${["햇빛", "나무 그늘", "건물 그늘"][sh] || ""}`;
-      } else $("utci-cur").textContent = "보행축 20m 밖이거나 건물 안입니다.";
+        const i = ids[0], b = S.cool.fb[i], o = S.cool.fo[i], dt = S.cool.fo.dT ? S.cool.fo.dT[i] : 0;
+        const p = window.Thermal.prep({ doy: 213, hour: S.R.hour, ta: 30, rh: 50, ws: 1, sr: 0 }), sh = p.hi >= 0 ? TH.g.shade(p.di, p.hi, i) : 2;
+        $("cool-cur").textContent = `커서 위치(${["햇빛", "나무 그늘", "건물 그늘"][sh]}): UTCI ${b.toFixed(1)} → ${o.toFixed(1)} (${(o - b).toFixed(1)}), 기온 ${dt.toFixed(1)}℃`;
+      } else $("cool-cur").textContent = "보행축 20m 밖이거나 건물 안입니다.";
     }
   }
   function focusUtci(R, results) {
@@ -552,23 +617,21 @@
   function renderTable() {
     const rs = S.results;
     if (!rs.length) return;
-    $("seg-body").innerHTML = rs.map((r, i) => {
+    let order = rs.map((r, i) => i);
+    if (S.sortPrio && S.prio) order.sort((a, b) => S.prio[a].rank - S.prio[b].rank);
+    $("seg-body").innerHTML = order.map((i) => {
+      const r = rs[i];
       if (!inFocus(r.seg)) return "";
       const s = r.seg;
       const type = s.seg_type === "BC" ? `B/C<span class="muted hide-m"> (${s.type_provisional} 잠정)</span>` : s.seg_type;
       return `<tr data-i="${i}" class="${S.selected === i ? "sel" : ""}">
         <td>${s.seg_id}</td><td class="loc">${s.landmark.replace(/\s*\(.*$/, "")}<span class="muted hide-m"> ${(s.landmark.match(/\((.*)\)/) || ["", ""])[1]}</span></td>
         <td>${type}</td><td class="nw"><i class="dot" style="background:${MODE[r.mode].color}"></i>${SHORT[r.mode]}</td>
-        <td>${fmt(r.ta, 1, "℃")}</td><td>${r.mode === "mist" ? signed(r.dTa) : "–"}</td></tr>`;
+        <td>${fmt(r.ta, 1, "℃")}</td><td>${r.mode === "mist" ? signed(r.dTa) : "–"}</td><td>${S.prio ? S.prio[i].rank + "위" : "–"}</td></tr>`;
     }).join("");
-    document.querySelectorAll("#seg-body tr").forEach((tr) => { tr.onclick = () => { const i = +tr.dataset.i; selectSeg(i); map.panTo(S.data.segments[i].coords[2]); }; });
+    document.querySelectorAll("#seg-body tr").forEach((tr) => { tr.onclick = () => selectSeg(+tr.dataset.i, true); });
   }
 
-  function lstRow(s) {
-    const v = S.data.lst && S.data.lst.segments[s.seg_id];
-    if (!v) return "";
-    return `<dt>위성 지표면온도</dt><dd>${Object.entries(v).map(([d, t]) => `${+d.slice(5, 7)}/${+d.slice(8, 10)} ${t != null ? t + "℃" : "–"}`).join(" · ")} <span class="muted">(30m 안 평균, 오전 11시)</span></dd>`;
-  }
   function thermRow(si) {
     const t = segThermal(si, S.R, S.results);
     if (!t) return "";
@@ -592,13 +655,21 @@
         <dt>가로수</dt><dd>${s.tree_count}주 (20m 이내)</dd>
         <dt>보도 폭</dt><dd>미확인 (로드뷰 실측 필요)</dd>
         <dt>기준 센서</dt><dd>${s.nearest_sdot} (${s.nearest_sdot_m}m)</dd>
-        ${lstRow(s)}${thermRow(S.selected)}
+        <dt>쿨페이브먼트</dt><dd>${s.prescription.includes("쿨페이브먼트") ? "설치 (노면 −6℃, 기온 낮 −0.5℃, 반사열은 증가)" : "없음"}</dd>
+        ${thermRow(S.selected)}
+        ${S.prio ? `<dt>시범 우선순위</dt><dd><b>${S.prio[S.selected].rank}위</b> / 30 <span class="muted">(취약성 ${(S.prio[S.selected].v * 100).toFixed(0)} × 한여름 UTCI 저감 ${S.prio[S.selected].dU.toFixed(1)} ÷ 사업비)</span></dd>` : ""}
         <dt>구간 사업비</dt><dd>${(s.capex_krw / 10000).toLocaleString()}만 원</dd>
       </dl>`;
   }
 
   // ---------------------------------------------------------------- ③ 예보
+  // 여름 예시: 2026년 여름 가장 더운 날 앞뒤 실제 관측값을 예보처럼 넣는다
+  function exampleHours() {
+    const days = S.data.replay.days, h = hottestIdx();
+    return days.slice(Math.max(0, h - 1), h + 3).flatMap((d) => d.hours.map((x) => ({ time: d.date.replace(/-/g, "") + String(x.h).padStart(2, "0"), t: x.ta, rh: x.rh })));
+  }
   function forecastHours() {
+    if (S.fcSrc === "ex") return exampleHours();
     const k = S.data.kma || {};
     const byTime = new Map();
     ((k.short && k.short.rows) || []).forEach((r) => { if (r.TMP != null) byTime.set(r.time, { time: r.time, t: r.TMP, rh: r.REH, ws: r.WSD, pop: r.POP }); });
@@ -630,6 +701,12 @@
   }
   function renderForecast() {
     renderFormula();
+    if (!S.fcSrc) {   // 실제 예보에 가동 시간이 없으면(겨울철 등) 여름 예시로 시작
+      S.fcSrc = "real";
+      const real = forecastHours();
+      if (!real.length || !real.some((h) => M.modeOf({ seg_type: "A" }, h.t, h.rh, +h.time.slice(8, 10)) !== "off")) S.fcSrc = "ex";
+    }
+    document.querySelectorAll("#fc-src button").forEach((b) => b.classList.toggle("on", b.dataset.s === S.fcSrc));
     const hrs = forecastHours();
     const k = S.data.kma || {};
     if (!hrs.length) {
@@ -674,9 +751,13 @@
     const tot = E.reduce((a, [, o]) => a + o.mid, 0), hrsOn = E.reduce((a, [, o]) => a + o.n.mist + o.n.flush + o.n.night, 0);
     const tmax = Math.max(...E.map(([, o]) => o.tmax));
     $("fc-answer").innerHTML = hrsOn
-      ? `<b>${focusName()}은 앞으로 ${E.length}일 동안 약 ${hrsOn}시간 가동하고, 물은 약 ${m3(tot)}㎥ 쓸 것으로 예상됩니다.</b> 날짜별 내역은 아래 표와 같습니다.`
-      : `<b>${focusName()}은 앞으로 ${E.length}일 동안 가동할 시간이 없습니다.</b> 예보 최고기온 ${fmt(tmax, 0, "℃")}가 가동 기준 30℃보다 낮습니다.<br><span class="muted">여름에는 하루 미스트 6~8시간, 저녁 살수 1~3시간이 잡힙니다.</span>${summerLink("여름 재생으로 보기")}`;
+      ? `<b>${focusName()}은 ${S.fcSrc === "ex" ? "이 4일 동안" : `앞으로 ${E.length}일 동안`} 약 ${hrsOn}시간 가동하고, 물은 약 ${m3(tot)}㎥ 쓸 것으로 예상됩니다.</b> 날짜별 내역은 아래 표와 같습니다.`
+      : `<b>${focusName()}은 앞으로 ${E.length}일 동안 가동할 시간이 없습니다.</b> 예보 최고기온 ${fmt(tmax, 0, "℃")}가 가동 기준 30℃보다 낮습니다. 위 <b>여름 예시</b>를 누르면 여름철 모습을 볼 수 있습니다.`;
     bindSummer($("fc-answer"));
+    if (S.fcSrc === "ex") {
+      $("fc-stamp").innerHTML = `<b>여름 예시</b>입니다. 2026년 여름 가장 더운 날 앞뒤 4일의 실제 관측값(S-DoT 동대문구 평균)을 예보 대신 넣어, 여름철에 이 화면이 어떻게 쓰이는지 보여 줍니다. 위 <b>실제 예보</b> 버튼을 누르면 기상청 예보로 돌아갑니다.`;
+      return;
+    }
     const base = k.short ? k.short.base : k.ultra.base;
     $("fc-stamp").textContent = `기상청 단기예보(${+base.slice(4, 6)}/${+base.slice(6, 8)} ${+base.slice(8, 10)}시 발표, 동대문구 격자)를 ②와 같은 규칙에 넣어 시간마다 가동 여부를 미리 판정했습니다. 칸 하나가 한 시간입니다.`;
   }
@@ -797,13 +878,13 @@
 
   async function init() {
     const g = M.getJSON;
-    const [segments, sensors, shades, hydrants, replay, realtime, population, trees, kma, boundary, lst, solweig] = await Promise.all([
+    const [segments, sensors, shades, hydrants, replay, realtime, population, trees, kma, boundary, vuln, solweig] = await Promise.all([
       g("data/segments.json", []), g("data/sensors.json", []), g("data/shades.json", []), g("data/hydrants.json", []),
       g("data/replay.json", { days: [] }), g("data/realtime.json", {}), g("data/population.json", null),
       g("data/trees.json", []), g("data/kma.json", {}), g("data/boundary.json", null),
-      g("data/lst.json", null), g("data/solweig.json", null),
+      g("data/vuln.json", null), g("data/solweig.json", null),
     ]);
-    S.data = { segments, sensors, shades, hydrants, replay, realtime, population, trees, kma, boundary, lst, solweig };
+    S.data = { segments, sensors, shades, hydrants, replay, realtime, population, trees, kma, boundary, vuln, solweig };
     try { thermalInit(); } catch (e) { console.warn("열 스트레스 준비 실패", e); TH = null; }
 
     initMap();
@@ -832,9 +913,23 @@
     $("tab-replay").onclick = () => setView("replay");
 
     initAssume();
-    lstInit();
-    $("lyr-utci").onchange = () => { if ($("lyr-utci").checked && map.getZoom() < 16) map.setZoom(16); render(); };
-    document.querySelectorAll("#utci-mode button").forEach((b) => (b.onclick = () => { S.utciMode = b.dataset.m; document.querySelectorAll("#utci-mode button").forEach((x) => x.classList.toggle("on", x === b)); render(); }));
+    vulnInit();
+    try { computePriority(); } catch (e) { console.warn("우선순위 계산 실패", e); }
+    $("prio-sort").onclick = () => { S.sortPrio = !S.sortPrio; $("prio-sort").classList.toggle("on", S.sortPrio); renderTable(); };
+    S.ana = "none";
+    const chips = (sel, key) => document.querySelectorAll(sel + " button").forEach((b) => (b.onclick = () => {
+      S[key] = b.dataset[Object.keys(b.dataset)[0]];
+      document.querySelectorAll(sel + " button").forEach((x) => x.classList.toggle("on", x === b));
+      render();
+    }));
+    chips("#ana-btns", "ana");
+    $("ana-btns").addEventListener("click", () => {
+      if (S.ana !== "cool" || map.getZoom() >= 16) return;
+      const pts = S.data.segments.filter(inFocus).flatMap((x) => x.coords);
+      const c = S.selected != null ? S.data.segments[S.selected].coords[2] : pts[Math.floor(pts.length / 2)];
+      map.setView(c, 16, { animate: false });   // 냉각 효과는 보행축 20m 안만 계산하므로 확대해서 보여 준다
+    }); chips("#cool-mode", "coolMode"); chips("#vuln-mode", "vulnMode");
+    document.querySelectorAll("#fc-src button").forEach((b) => (b.onclick = () => { S.fcSrc = b.dataset.s; renderForecast(); }));
     document.querySelectorAll("#metric-btns button").forEach((b) => (b.onclick = () => { S.metric = b.dataset.m; render(); }));
     map.on("mousemove", onMapMove);
     map.fitBounds(L.latLngBounds(segments.flatMap((s) => s.coords)).pad(0.12), { animate: false });

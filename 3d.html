@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>쿨링 보행축 3D 비교</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-  <link rel="stylesheet" href="assets/compare3d.css?v=20261118">
+  <link rel="stylesheet" href="assets/compare3d.css?v=20261120">
 </head>
 <body>
   <header class="bar">
@@ -51,12 +51,12 @@
       </div>
       <div class="lg-modes" id="lg-modes"></div>
     </div>
-    <div class="caveat" id="caveat"><button id="cv-btn" class="cv-btn">ⓘ 경험식 기반 시각화이며 CFD 해석 결과가 아닙니다 <span>자세히</span></button><p>기온장은 S-DoT 보간값, 지면 근처 층은 ASOS 지면온도, 냉각은 미스트 효과식의 구간 평균 저감폭을 폴대(35m 이내 지상식 소화전을 보행축에 투영한 지점) 주변에 분배한 것이며, 국지 저감은 습구온도 강하량의 50%를 넘지 않게 제한했습니다. 바닥 살수 구간(보행축 선 12m 안)은 노면온도를 최대 7℃ 낮췄고(Hendel 외 2015 파리 실측 6~7.5℃), 이는 지면 근처 층에만 반영했습니다. 건물에 의한 바람 변형은 반영하지 않았습니다.</p></div>
+    <div class="caveat" id="caveat"><button id="cv-btn" class="cv-btn">ⓘ 경험식 기반 시각화이며 CFD 해석 결과가 아닙니다 <span>자세히</span></button><p>기온장은 S-DoT 보간값, 지면 근처 층은 ASOS 지면온도, 냉각은 미스트 효과식의 구간 평균 저감폭을 폴대(35m 이내 지상식 소화전을 보행축에 투영한 지점) 주변에 분배한 것이며, 국지 저감은 습구온도 강하량의 50%를 넘지 않게 제한했습니다. 바닥 살수 구간(보행축 선 12m 안)은 노면온도를 최대 7℃ 낮췄고(Hendel 외 2015 파리 실측 6~7.5℃), 이는 지면 근처 층에만 반영했습니다. 쿨페이브먼트 구간은 노면온도 6℃, 기온 낮 0.5℃를 낮췄습니다(Middel 외 2020). 이 화면은 기온만 보여 주므로, 쿨페이브먼트가 반사열을 늘려 보행자 체감을 높이는 효과는 대시보드의 냉각 효과(UTCI)에서 확인하세요. 건물에 의한 바람 변형은 반영하지 않았습니다.</p></div>
     <div id="loading">3D 자료를 불러오는 중입니다…</div>
   </div>
 
   <script src="assets/vendor/deck.min.js"></script>
-  <script src="assets/model.js?v=20261118"></script>
-  <script src="assets/compare3d.js?v=20261118"></script>
+  <script src="assets/model.js?v=20261120"></script>
+  <script src="assets/compare3d.js?v=20261120"></script>
 </body>
 </html>

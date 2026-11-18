@@ -144,6 +144,7 @@ window.CoolModel = (() => {
           let dt = 0, cap = 0;
           P.forEach((n) => { if (A[n.seg] && Math.abs(n.x - x) < 40 && Math.abs(n.y - y) < 40) { dt += A[n.seg] * kern(n, x, y, 1.5, w); cap = Math.min(cap, caps[n.seg]); } });
           if (dt < cap) dt = cap;
+          dt += r.paveDT || 0;    // 쿨페이브먼트 기온 효과 (Middel 외 2020: 낮 0.5℃)
           const tw = r.tw;
           pts.push({ d: dist, seg: si, x, y, base: apparent(r.ta, tw), on: apparent(r.ta + dt, tw), dTa: dt });
           dist += HEAT.step;

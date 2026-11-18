@@ -25,7 +25,8 @@ window.Thermal = (() => {
       lon[i] = c0[0] + (c1[0] - c0[0]) * u + (c3[0] - c0[0]) * v;
       lat[i] = c0[1] + (c1[1] - c0[1]) * u + (c3[1] - c0[1]) * v;
     }
-    G = { sw, n, svf, lc, dist, shade, lat, lon, row, col, nd, nh };
+    const seg = sw.seg ? b64(sw.seg) : null;   // 가장 가까운 구간 번호 (미리 계산)
+    G = { sw, n, svf, lc, dist, shade, lat, lon, row, col, nd, nh, seg };
     return G;
   }
 
@@ -65,7 +66,7 @@ window.Thermal = (() => {
     return { ...met, di: nearest, hi, alt: s.alt, I, D, Gh, Lsky: eSky * K4(met.ta), fp, sinb: Math.sin(a * Math.PI / 180), dayOk: hi >= 0 && Gh > 0 };
   }
   // 화소 i의 평균복사온도. wet: 바닥 살수로 노면이 젖었는지
-  function tmrt(p, i, wet = false) {
+  function tmrt(p, i, wet = false, pave = false) {
     const svf = G.svf[i] / 250, lc = G.lc[i] || 1;
     const sh = p.hi >= 0 ? G.shade(p.di, p.hi, i) : 2;
     const sdir = sh === 0 ? 1 : sh === 1 ? 0.03 : 0;
@@ -74,9 +75,11 @@ window.Thermal = (() => {
     if (lc === 4) tg = p.ta - 1;
     else if (lc === 1 || lc === 5) tg = p.ta + tgx * (0.15 + 0.85 * (sh === 0 ? 1 : 0));
     else tg = p.ta + tgx * (0.1 + 0.4 * (sh === 0 ? 1 : 0));
-    if (wet && (lc === 1 || lc === 5)) tg = Math.max(p.ta - 1, tg - 7);   // Hendel 외(2015) 노면 6~7.5℃ 하강
+    const paved = lc === 1 || lc === 5;
+    if (pave && paved && sh === 0) tg -= 6;                               // 쿨페이브먼트: 햇빛 받는 노면 최대 6℃ 하강 (Middel 외 2020)
+    if (wet && paved) tg = Math.max(p.ta - 1, tg - 7);   // Hendel 외(2015) 노면 6~7.5℃ 하강
     const tw = p.ta + 0.2 * tgx;
-    const alb = ALB[lc] || 0.15;
+    const alb = pave && paved ? 0.35 : ALB[lc] || 0.15;                   // 쿨페이브먼트 반사율
     const Kdn = p.D * svf + p.I * p.sinb * sdir;
     const Kup = alb * Kdn;
     const Klat = 0.5 * (p.D * svf + ALB_W * p.Gh * (1 - svf)) + 0.5 * Kup;
@@ -93,8 +96,8 @@ window.Thermal = (() => {
     const ea = es(tw) - 0.000662 * 1013 * (ta + dT - tw);
     return Math.min(100, Math.max(1, ea / es(ta + dT) * 100));
   }
-  function utciAt(p, i, dT = 0, wet = false) {
-    return window.UTCI.utci(p.ta + dT, tmrt(p, i, wet), p.ws, rhAfter(p.ta, p.rh, dT));
+  function utciAt(p, i, dT = 0, wet = false, pave = false) {
+    return window.UTCI.utci(p.ta + dT, tmrt(p, i, wet, pave), p.ws, rhAfter(p.ta, p.rh, dT));
   }
   return { load, prep, tmrt, utciAt, rhAfter, sun, get grid() { return G; } };
 })();
