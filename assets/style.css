@@ -179,6 +179,8 @@ details.method summary { font-size: 15px; }
 .leaflet-tooltip.t-sel::before { border-top-color: #142A52; }
 .seg-list { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .seg-list summary { cursor: pointer; font-weight: 600; color: var(--navy); font-size: 13.5px; }
+.assume-grid select { font: inherit; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; width: 100%; background: #fff; }
+.sens-table td, .sens-table th { white-space: nowrap; }
 .prio-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
 .link-btn.on { background: var(--navy); color: #fff; }
 .h2-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }

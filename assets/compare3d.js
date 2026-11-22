@@ -202,7 +202,7 @@
         const mean = list.length ? list.reduce((a, s) => a + s.t, 0) / list.length : 0;
         list = list.map((s) => ({ ...s, t: n.T1H + (s.t - mean), rh: n.REH }));
         hour = +n.time.slice(8, 10);
-        return { hour, sensors: list, uniform: { t: n.T1H, rh: n.REH }, ws: n.WSD, wd: n.VEC, tg: null,
+        return { hour, sensors: list, uniform: { t: n.T1H, rh: n.REH }, ws: n.WSD, wd: n.VEC, tg: null, rain: (+n.PTY || 0) > 0 || (+n.RN1 || 0) > 0,
                  label: `${+n.time.slice(4, 6)}월 ${+n.time.slice(6, 8)}일 ${hour}시 실시간(기상청 실황)` };
       }
       return { hour, sensors: list, uniform: null, ws: n && typeof n.WSD === "number" ? n.WSD : null, wd: n ? n.VEC : null, tg: null,
@@ -244,7 +244,7 @@
       if (R.sensors.length) { ta = M.idw(mid[0], mid[1], R.sensors, "t"); rh = M.idw(mid[0], mid[1], R.sensors, "rh"); }
       else if (R.uniform) { ta = R.uniform.t; rh = R.uniform.rh; }
       if (ta == null) return { seg, mode: "off", ta: null };
-      const mode = M.modeOf(seg, ta, rh, R.hour);
+      const mode = M.modeOf(seg, ta, rh, R.hour, R.rain);
       const e = M.effect(ta, rh, M.effFor(seg));
       return { seg, mode, ta, rh, tw: e.tw, dTa: mode === "mist" ? e.dTa : 0, dTapp: mode === "mist" ? e.dTapp : 0 };
     });

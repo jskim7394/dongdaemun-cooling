@@ -3,13 +3,16 @@ window.CoolModel = (() => {
   "use strict";
   const RULE = { mistTa: 30, mistRh: 70, dayStart: 10, dayEnd: 18, nightStart: 18, nightEnd: 21, nightTa: 27 };
   const EFF = { shade: 0.34, open: 0.27 };   // 증발 효율 (보수적)
-  const DUTY = 10 / 15;                       // 10분 가동 · 5분 정지
+  // 민감도 분석용 조정값 (화면에서 바꿀 수 있음)
+  const CFG = { effScale: 1, onMin: 10, windScale: 1, paveReflect: true };
+  const duty = () => CFG.onMin / 15;          // 15분 주기 중 가동 분
   const MODE = {
     mist:    { label: "미스트 + 하부 살수", color: "#0E7C86" },
     flush:   { label: "하부 살수만 (고습)", color: "#3B6FB6" },
     night:   { label: "야간 방열 살수",     color: "#6B5CA5" },
     off:     { label: "정지",               color: "#A3AAB6" },
     passive: { label: "쿨페이브먼트만 (소화전 없음)", color: "#B7832F" },
+    rain:    { label: "강우 정지",           color: "#2B3A55" },
     fire:    { label: "119 출동 · 급수 차단", color: "#C0392B" },
   };
   const TYPE_LABEL = {
@@ -18,7 +21,7 @@ window.CoolModel = (() => {
     D: "유형 D · 35m 내 지상식 소화전 없음",
   };
   // 물 사용량 가정값 (화면에서 조정 가능)
-  const WATER = { nozzlesPerPole: 10, lpmPerNozzle: 0.15, flushMm: 1.0, sidewalkM: 3 };
+  const WATER = { nozzlesPerPole: 10, lpmPerNozzle: 0.05, flushMm: 1.0, sidewalkM: 3 };
 
   // Stull(2011) 습구온도
   function wetBulb(t, rh) {
@@ -29,17 +32,19 @@ window.CoolModel = (() => {
   function apparent(ta, tw) {
     return -0.2442 + 0.55399 * tw + 0.45535 * ta - 0.0022 * tw * tw + 0.00278 * tw * ta + 3.0;
   }
-  function modeOf(seg, ta, rh, hour) {
+  // rain: 기상청 강수형태(PTY)가 비·소나기 등이거나 1시간 강수량이 있으면 모든 분사·살수를 멈춘다
+  function modeOf(seg, ta, rh, hour, rain = false) {
     if (seg.seg_type === "D") return "passive";
+    if (rain) return "rain";
     const day = hour >= RULE.dayStart && hour < RULE.dayEnd;
     if (day && ta >= RULE.mistTa) return rh < RULE.mistRh ? "mist" : "flush";
     if (hour >= RULE.nightStart && hour < RULE.nightEnd && ta >= RULE.nightTa) return "night";
     return "off";
   }
-  const effFor = (seg) => (seg.seg_type === "A" ? EFF.shade : EFF.open);
+  const effFor = (seg) => (seg.seg_type === "A" ? EFF.shade : EFF.open) * CFG.effScale;
   function effect(ta, rh, eff) {
     const tw = wetBulb(ta, rh);
-    const dTa = -eff * (ta - tw) * DUTY;
+    const dTa = -eff * (ta - tw) * duty();
     const dTapp = apparent(ta + dTa, tw) - apparent(ta, tw);  // 등엔탈피 가정: 습구온도 유지
     return { dTa, dTapp, tw };
   }
@@ -56,7 +61,7 @@ window.CoolModel = (() => {
   function waterLiters(seg, mode, W = WATER) {
     const poles = seg.fh_above_35m || 0;
     const flush = seg.len_m * W.sidewalkM * W.flushMm;            // 1mm = 1L/㎡, 시간당 1회
-    if (mode === "mist") return poles * W.nozzlesPerPole * W.lpmPerNozzle * 60 * DUTY + flush;
+    if (mode === "mist") return poles * W.nozzlesPerPole * W.lpmPerNozzle * 60 * duty() + flush;
     if (mode === "flush" || mode === "night") return flush;
     return 0;
   }
@@ -146,23 +151,23 @@ window.CoolModel = (() => {
           if (dt < cap) dt = cap;
           dt += r.paveDT || 0;    // 쿨페이브먼트 기온 효과 (Middel 외 2020: 낮 0.5℃)
           const tw = r.tw;
-          pts.push({ d: dist, seg: si, x, y, base: apparent(r.ta, tw), on: apparent(r.ta + dt, tw), dTa: dt });
-          dist += HEAT.step;
+          const len = Math.min(HEAT.step, L - d);   // 마지막 조각은 남은 길이만큼
+          pts.push({ d: dist, seg: si, x, y, len, base: apparent(r.ta, tw), on: apparent(r.ta + dt, tw), dTa: dt });
+          dist += len;
         }
       }
     });
-    const dtMin = HEAT.step / HEAT.walk / 60;
-    const over = (k) => pts.reduce((a, p) => a + Math.max(0, p[k] - HEAT.appThreshold) * dtMin, 0);
+    const over = (k) => pts.reduce((a, p) => a + Math.max(0, p[k] - HEAT.appThreshold) * p.len / HEAT.walk / 60, 0);
     // 체감온도가 1℃ 이상 낮아지는 쉼 구간
     const rests = [];
     let cur = null;
     pts.forEach((p) => {
-      if (p.base - p.on >= 1) { if (!cur) { cur = { from: p.d, to: p.d }; rests.push(cur); } cur.to = p.d + HEAT.step; }
+      if (p.base - p.on >= 1) { if (!cur) { cur = { from: p.d, to: p.d }; rests.push(cur); } cur.to = p.d + p.len; }
       else cur = null;
     });
     return { pts, length: dist, minutes: dist / HEAT.walk / 60, overBase: over("base"), overOn: over("on"), rests,
              maxDrop: pts.reduce((a, p) => Math.max(a, p.base - p.on), 0) };
   }
 
-  return { xy, PLUME, HEAT, poles, wind, kern, amps, routeProfile, RULE, EFF, DUTY, MODE, TYPE_LABEL, WATER, wetBulb, apparent, modeOf, effFor, effect, idw, waterLiters, getJSON, wdName };
+  return { xy, PLUME, HEAT, poles, wind, kern, amps, routeProfile, RULE, EFF, CFG, get DUTY() { return duty(); }, MODE, TYPE_LABEL, WATER, wetBulb, apparent, modeOf, effFor, effect, idw, waterLiters, getJSON, wdName };
 })();

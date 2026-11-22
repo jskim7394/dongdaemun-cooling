@@ -79,7 +79,7 @@ window.Thermal = (() => {
     if (pave && paved && sh === 0) tg -= 6;                               // 쿨페이브먼트: 햇빛 받는 노면 최대 6℃ 하강 (Middel 외 2020)
     if (wet && paved) tg = Math.max(p.ta - 1, tg - 7);   // Hendel 외(2015) 노면 6~7.5℃ 하강
     const tw = p.ta + 0.2 * tgx;
-    const alb = pave && paved ? 0.35 : ALB[lc] || 0.15;                   // 쿨페이브먼트 반사율
+    const alb = pave && paved && window.CoolModel.CFG.paveReflect ? 0.35 : ALB[lc] || 0.15;   // 쿨페이브먼트 반사율
     const Kdn = p.D * svf + p.I * p.sinb * sdir;
     const Kup = alb * Kdn;
     const Klat = 0.5 * (p.D * svf + ALB_W * p.Gh * (1 - svf)) + 0.5 * Kup;
@@ -97,7 +97,7 @@ window.Thermal = (() => {
     return Math.min(100, Math.max(1, ea / es(ta + dT) * 100));
   }
   function utciAt(p, i, dT = 0, wet = false, pave = false) {
-    return window.UTCI.utci(p.ta + dT, tmrt(p, i, wet, pave), p.ws, rhAfter(p.ta, p.rh, dT));
+    return window.UTCI.utci(p.ta + dT, tmrt(p, i, wet, pave), p.ws * window.CoolModel.CFG.windScale, rhAfter(p.ta, p.rh, dT));
   }
   return { load, prep, tmrt, utciAt, rhAfter, sun, get grid() { return G; } };
 })();

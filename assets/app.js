@@ -4,7 +4,7 @@
   const M = window.CoolModel;
   const { RULE, MODE, TYPE_LABEL } = M;
   const W = { ...M.WATER };
-  const SHORT = { mist: "미스트", flush: "살수만", night: "저녁 살수", off: "정지", passive: "쿨페이브먼트", fire: "119 차단" };
+  const SHORT = { mist: "미스트", flush: "살수만", night: "저녁 살수", off: "정지", passive: "쿨페이브먼트", fire: "119 차단", rain: "강우 정지" };
   const CNAME = { all: "보행축 전체", C1: "C1 왕산로", C2: "C2 전농로·사가정로", C3: "C3 회기로·이문로" };
 
   const S = { view: "live", data: {}, dayIdx: 0, hour: 14, playing: null, selected: null, segLayers: [],
@@ -82,7 +82,7 @@
     map.on("click", (e) => { if (!S.fireMode) return; S.fire = [e.latlng.lat, e.latlng.lng]; render(); });
   }
   function renderLegend() {
-    const items = ["mist", "flush", "night", "off", "passive"].map((k) => `<span><i style="background:${MODE[k].color}"></i>${MODE[k].label}</span>`);
+    const items = ["mist", "flush", "night", "rain", "off", "passive"].map((k) => `<span><i style="background:${MODE[k].color}"></i>${MODE[k].label}</span>`);
     if (S.fire) items.push(`<span><i style="background:${MODE.fire.color}"></i>${MODE.fire.label}</span>`);
     if ($("lyr-shade").checked) items.push(`<span><i class="dot-i" style="border:1.5px solid #2E7D4F;background:#fff"></i>그늘막</span>`);
     if ($("lyr-hyd").checked) items.push(`<span><i class="dot-i" style="background:#1D3A66"></i>지상 소화전</span><span><i class="dot-i" style="background:#B9C2D0"></i>지하 소화전</span>`);
@@ -140,14 +140,15 @@
       let list = (rt.sensors || []).filter((s) => s.t != null && s.rh != null && meta.has(s.serial)).map((s) => ({ ...meta.get(s.serial), t: s.t, rh: s.rh }));
       const age = rt.latest_obs ? sdotAgeH(rt.latest_obs) : Infinity;
       const wind = n && typeof n.WSD === "number" ? { ws: n.WSD, wd: n.VEC, src: `기상청 실황 ${+n.time.slice(8, 10)}시` } : null;
+      const rain = !!(n && ((+n.PTY || 0) > 0 || (+n.RN1 || 0) > 0));   // 강수형태·1시간 강수량
       if (n && typeof n.T1H === "number" && (age > 3 || !list.length)) {
         // S-DoT가 늦으면 기상청 실황 기온을 기준으로 하고, 센서 사이의 차이만 S-DoT에서 가져온다
         const mean = list.length ? list.reduce((a, s) => a + s.t, 0) / list.length : 0;
         list = list.map((s) => ({ ...s, t: n.T1H + (s.t - mean), rh: n.REH }));
-        return { hour: +n.time.slice(8, 10), sensors: list, uniform: { t: n.T1H, rh: n.REH }, wind, src: "kma", age, obs: rt.latest_obs, ncstTime: n.time };
+        return { hour: +n.time.slice(8, 10), sensors: list, uniform: { t: n.T1H, rh: n.REH }, wind, rain, src: "kma", age, obs: rt.latest_obs, ncstTime: n.time };
       }
       const hour = rt.latest_obs ? +rt.latest_obs.slice(8, 10) : new Date().getHours();
-      return { hour, sensors: list, uniform: null, wind, src: list.length ? "sdot" : "none", age, obs: rt.latest_obs };
+      return { hour, sensors: list, uniform: null, wind, rain, src: list.length ? "sdot" : "none", age, obs: rt.latest_obs };
     }
     const day = S.data.replay.days[dayIdx];
     const rec = day && day.hours.find((h) => h.h === hour);
@@ -162,7 +163,7 @@
       if (R.sensors.length) { ta = M.idw(mid[0], mid[1], R.sensors, "t"); rh = M.idw(mid[0], mid[1], R.sensors, "rh"); }
       else if (R.uniform) { ta = R.uniform.t; rh = R.uniform.rh; }
       if (ta == null) return { seg, mode: "off", ta: null, rh: null };
-      let mode = M.modeOf(seg, ta, rh, R.hour);
+      let mode = M.modeOf(seg, ta, rh, R.hour, R.rain);
       if (withFire && S.fire && seg.seg_type !== "D" && seg.coords.some((c) => distM(c, S.fire) <= 500)) mode = "fire";
       const e = M.effect(ta, rh, M.effFor(seg));
       const pave = seg.prescription.includes("쿨페이브먼트");
@@ -283,6 +284,7 @@
     const h = R.hour;
     const day = h >= RULE.dayStart && h < RULE.dayEnd, eve = h >= RULE.nightStart && h < RULE.nightEnd;
     if (k.ta == null) html = "아직 판단할 기온 자료가 없습니다.";
+    else if (R.rain) html = `<b>비가 와서 모든 분사·살수를 멈췄습니다.</b> 기상청 실황에 강수가 잡히면 미스트와 바닥 살수를 자동으로 끕니다. 비가 이미 바닥과 공기를 식히고 습도를 올려 미스트 효과가 없기 때문입니다.`;
     else if (k.nMist) html = `<b>${name} ${F.length}개 구간 중 ${k.nMist}개 구간에서 미스트가 작동합니다.</b> 기온 ${fmt(k.ta, 1, "℃")}가 기준 30℃를 넘고, 습도 ${fmt(k.rh, 0, "%")}가 기준 70%보다 낮기 때문입니다.`;
     else if (F.some((r) => r.mode === "flush")) html = `<b>미스트 대신 바닥 살수만 합니다.</b> 기온 ${fmt(k.ta, 1, "℃")}는 기준을 넘었지만 습도 ${fmt(k.rh, 0, "%")}가 70% 이상이라 미스트가 잘 증발하지 않습니다.`;
     else if (F.some((r) => r.mode === "night")) html = `<b>저녁 바닥 살수 중입니다.</b> ${h}시에도 기온이 ${fmt(k.ta, 1, "℃")}로 27℃ 이상이라 낮 동안 데워진 보도를 식힙니다.`;
@@ -338,7 +340,7 @@
     // 지표: 기상청 체감온도 또는 UTCI
     const metric = S.metric || "app";
     document.querySelectorAll("#metric-btns button").forEach((b) => b.classList.toggle("on", b.dataset.m === metric));
-    let series = prof.pts.map((p) => ({ d: p.d, base: p.base, on: p.on })), thr = 33, thrLbl = "폭염주의보 기준 체감 33℃", unitLbl = "체감", note = "";
+    let series = prof.pts.map((p) => ({ d: p.d, len: p.len, base: p.base, on: p.on })), thr = 33, thrLbl = "폭염주의보 기준 체감 33℃", unitLbl = "체감", note = "";
     if (metric === "utci") {
       let Ru = Rr, ru = rr, pu = prof;
       if (!metFor(Ru)) { Ru = readingsFor("replay", hottestIdx(), 14); ru = resultsFor(Ru, false); pu = M.routeProfile(ru, idx, P, M.wind(Ru.wind && Ru.wind.ws, Ru.wind && Ru.wind.wd)); note = `UTCI는 일사 자료가 있는 여름 재생에서만 계산되어 ${Ru.day.label.split(" (")[0]} 14시를 보여 줍니다.`; }
@@ -346,15 +348,14 @@
       series = fb ? pu.pts.map((p) => {
         const ids = nearPix(p.x, p.y, 12);
         const avg = (f) => { let a = 0, c = 0; ids.forEach((i) => { if (!Number.isNaN(f[i])) { a += f[i]; c++; } }); return c ? a / c : null; };
-        return { d: p.d, base: avg(fb), on: avg(fo) };
+        return { d: p.d, len: p.len, base: avg(fb), on: avg(fo) };
       }).filter((q) => q.base != null) : [];
       thr = 38; thrLbl = "UTCI 38 (매우 강한 더위 스트레스 시작)"; unitLbl = "UTCI";
     }
     $("route-desc").textContent = metric === "utci"
       ? "보행축을 따라 걸으며 받는 열 스트레스(UTCI)입니다. 보행축 선 12m 안의 2m 격자 평균이라 건물·가로수 그늘이 있는 곳은 낮게, 햇빛이 드는 곳은 높게 나옵니다. 회색은 시설이 없을 때, 초록은 미스트와 바닥 살수를 할 때입니다." + (note ? " " + note : "")
       : "한쪽 끝에서 반대쪽 끝까지 걸어가며 느끼는 체감온도입니다. 회색은 시설이 없을 때, 초록은 가동할 때입니다. 미스트 폴대 근처를 지날 때마다 체감온도가 잠깐씩 내려가고, 폭염주의보 기준인 체감 33℃를 넘는 더위에 노출되는 양(넘은 온도 × 시간)이 줄어듭니다.";
-    const dtMin = M.HEAT.step / M.HEAT.walk / 60;
-    const over = (k) => series.reduce((a, p) => a + Math.max(0, p[k] - thr) * dtMin, 0);
+    const over = (k) => series.reduce((a, p) => a + Math.max(0, p[k] - thr) * p.len / M.HEAT.walk / 60, 0);
     const oB = over("base"), oO = over("on");
     let rests = 0, inR = false;
     series.forEach((p) => { const r = p.base - p.on >= 1; if (r && !inR) rests++; inR = r; });
@@ -389,6 +390,55 @@
     chartRoute.data.datasets[2].data = series.length ? [{ x: 0, y: thr }, { x: series[series.length - 1].d, y: thr }] : [];
     chartRoute.options.scales.y.title.text = metric === "utci" ? "UTCI" : "체감온도";
     chartRoute.update("none");
+  }
+
+  // ---------------------------------------------------------------- 민감도 분석
+  function routeEval(metric) {
+    const idx = S.data.segments.map((x, i) => (x.corridor_id === S.routeC ? i : -1)).filter((i) => i >= 0).sort((a, b) => S.data.segments[a].seg_id.localeCompare(S.data.segments[b].seg_id));
+    const R = readingsFor("replay", hottestIdx(), 14), res = resultsFor(R, false);
+    const P = S.poles || (S.poles = M.poles(S.data.segments));
+    const prof = M.routeProfile(res, idx, P, M.wind(R.wind && R.wind.ws, R.wind && R.wind.wd));
+    let series = prof.pts, thr = 33;
+    if (metric === "utci") {
+      const fb = utciField(R, res, false), fo = utciField(R, res, true);
+      if (!fb) return null;
+      series = prof.pts.map((p) => {
+        const ids = nearPix(p.x, p.y, 12); let a = 0, b = 0;
+        ids.forEach((i) => { a += fb[i]; b += fo[i]; });
+        return ids.length ? { base: a / ids.length, on: b / ids.length, len: p.len } : null;
+      }).filter(Boolean);
+      thr = 38;
+    }
+    const over = (k) => series.reduce((a, p) => a + Math.max(0, p[k] - thr) * p.len, 0);
+    const oB = over("base"), oO = over("on");
+    const W_ = series.reduce((a, p) => a + p.len, 0), mean = (k) => series.reduce((a, p) => a + p[k] * p.len, 0) / W_;
+    return { red: oB > 0 ? (1 - oO / oB) * 100 : 0, drop: mean("base") - mean("on") };
+  }
+  function sensTable() {
+    const C = M.CFG, keep = { ...C };
+    const cases = [
+      ["기준값", {}],
+      ["증발 효율 절반", { effScale: 0.5 }], ["증발 효율 1.5배", { effScale: 1.5 }],
+      ["5분 가동 · 10분 정지", { onMin: 5 }], ["15분 연속 가동", { onMin: 15 }],
+      ["골목 바람 절반", { windScale: 0.5 }],
+      ["쿨페이브먼트 반사열 무시", { paveReflect: false }],
+    ];
+    const rows = cases.map(([lbl, ch]) => {
+      Object.assign(C, keep, ch); fieldCache.clear();
+      const a = routeEval("app"), u = routeEval("utci");
+      return `<tr><td>${lbl}</td><td>${a ? a.drop.toFixed(2) + "℃" : "–"}</td><td>${a ? a.red.toFixed(0) + "%" : "–"}</td><td>${u ? u.drop.toFixed(2) + "℃" : "–"}</td><td>${u ? u.red.toFixed(0) + "%" : "–"}</td></tr>`;
+    });
+    Object.assign(C, keep); fieldCache.clear();
+    const day = S.data.replay.days[hottestIdx()].label.split(" (")[0];
+    $("sens-out").innerHTML = `<p class="muted small">${CNAME[S.routeC]} · ${day} 14시 · 보행축을 걸을 때 평균 저감과 더위 노출 감소율</p>
+      <div class="table-wrap"><table class="mini sens-table"><thead><tr><th>가정</th><th>체감 평균 저감</th><th>체감 33℃ 노출 감소</th><th>UTCI 평균 저감</th><th>UTCI 38 노출 감소</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  }
+  function initSens() {
+    const C = M.CFG;
+    const bind = (id, key, parse) => { const el = $(id); el.value = String(C[key]); el.onchange = () => { C[key] = parse(el.value); fieldCache.clear(); S.prio = null; computePriority(); render(); renderForecast(); }; };
+    bind("cfg-eff", "effScale", parseFloat); bind("cfg-on", "onMin", parseInt); bind("cfg-wind", "windScale", parseFloat);
+    bind("cfg-pave", "paveReflect", (v) => v === "true");
+    $("sens-run").onclick = () => { $("sens-out").innerHTML = '<p class="muted small">계산 중…</p>'; setTimeout(sensTable, 30); };
   }
 
   // ---------------------------------------------------------------- 열 스트레스(UTCI)·위성 지표면온도
@@ -434,7 +484,7 @@
   function utciField(R, results, on) {
     const met = metFor(R);
     if (!met) return null;
-    const key = `${R.day.date}|${R.hour}|${on}|${results.map((r) => r.mode[0]).join("")}`;
+    const C = M.CFG, key = `${R.day.date}|${R.hour}|${on}|${results.map((r) => r.mode[0]).join("")}|${C.effScale}|${C.onMin}|${C.windScale}|${C.paveReflect}`;
     if (fieldCache.has(key)) return fieldCache.get(key);
     const g = TH.g, n = g.n, out = new Float32Array(n), preps = new Map(), dts = new Float32Array(n);
     out.dT = dts;
@@ -672,8 +722,8 @@
     if (S.fcSrc === "ex") return exampleHours();
     const k = S.data.kma || {};
     const byTime = new Map();
-    ((k.short && k.short.rows) || []).forEach((r) => { if (r.TMP != null) byTime.set(r.time, { time: r.time, t: r.TMP, rh: r.REH, ws: r.WSD, pop: r.POP }); });
-    ((k.ultra && k.ultra.rows) || []).forEach((r) => { if (r.T1H != null) byTime.set(r.time, { time: r.time, t: r.T1H, rh: r.REH, ws: r.WSD, pop: (byTime.get(r.time) || {}).pop }); });
+    ((k.short && k.short.rows) || []).forEach((r) => { if (r.TMP != null) byTime.set(r.time, { time: r.time, t: r.TMP, rh: r.REH, ws: r.WSD, pop: r.POP, pty: +r.PTY || 0 }); });
+    ((k.ultra && k.ultra.rows) || []).forEach((r) => { if (r.T1H != null) byTime.set(r.time, { time: r.time, t: r.T1H, rh: r.REH, ws: r.WSD, pop: (byTime.get(r.time) || {}).pop, pty: +r.PTY || 0 }); });
     const rows = [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
     // 단기예보 뒷부분은 3시간 간격으로 온다. 빈 시간은 앞뒤 값을 직선 보간해 1시간 간격으로 맞춘다
     const toD = (t) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(8, 10));
@@ -687,7 +737,7 @@
       if (gap <= 1 || gap > 6) return;
       for (let h = 1; h < gap; h++) {
         const w = h / gap, lerp = (a, b) => (a == null || b == null ? a : a + (b - a) * w);
-        out.push({ time: toT(toD(r.time) + h * 3.6e6), t: lerp(r.t, n.t), rh: lerp(r.rh, n.rh), ws: lerp(r.ws, n.ws), pop: r.pop, interp: true });
+        out.push({ time: toT(toD(r.time) + h * 3.6e6), t: lerp(r.t, n.t), rh: lerp(r.rh, n.rh), ws: lerp(r.ws, n.ws), pop: r.pop, pty: r.pty, interp: true });
       }
     });
     return out;
@@ -696,7 +746,7 @@
     const segs = S.data.segments.filter((s) => inFocus(s) && s.seg_type !== "D");
     const poles = segs.reduce((a, s) => a + s.fh_above_35m, 0), len = segs.reduce((a, s) => a + s.len_m, 0);
     const mist = poles * W.nozzlesPerPole * W.lpmPerNozzle * 60 * M.DUTY, flush = len * W.sidewalkM * W.flushMm;
-    $("w-formula").innerHTML = `${focusName()} 기준 · 미스트: 소화전 ${poles}기 × 노즐 ${W.nozzlesPerPole}개 × ${W.lpmPerNozzle}L/분 × 60분 × 가동 비율 ⅔ = <b>시간당 ${Math.round(mist).toLocaleString()}L</b><br>`
+    $("w-formula").innerHTML = `${focusName()} 기준 · 미스트: 소화전 ${poles}기 × 노즐 ${W.nozzlesPerPole}개 × ${W.lpmPerNozzle}L/분 × 60분 × 가동 비율 ${M.CFG.onMin}/15 = <b>시간당 ${Math.round(mist).toLocaleString()}L</b><br>`
       + `바닥 살수: 구간 길이 ${Math.round(len).toLocaleString()}m × 폭 ${W.sidewalkM}m × ${W.flushMm}mm = <b>시간당 ${Math.round(flush).toLocaleString()}L</b> (미스트·살수만·저녁 살수 때 모두 사용)`;
   }
   function renderForecast() {
@@ -704,7 +754,7 @@
     if (!S.fcSrc) {   // 실제 예보에 가동 시간이 없으면(겨울철 등) 여름 예시로 시작
       S.fcSrc = "real";
       const real = forecastHours();
-      if (!real.length || !real.some((h) => M.modeOf({ seg_type: "A" }, h.t, h.rh, +h.time.slice(8, 10)) !== "off")) S.fcSrc = "ex";
+      if (!real.length || !real.some((h) => ["mist", "flush", "night"].includes(M.modeOf({ seg_type: "A" }, h.t, h.rh, +h.time.slice(8, 10), h.pty > 0)))) S.fcSrc = "ex";
     }
     document.querySelectorAll("#fc-src button").forEach((b) => b.classList.toggle("on", b.dataset.s === S.fcSrc));
     const hrs = forecastHours();
@@ -716,7 +766,7 @@
       return;
     }
     const segs = S.data.segments.filter(inFocus);
-    const modeAt = (h, dt) => M.modeOf({ seg_type: "A" }, h.t + dt, h.rh, +h.time.slice(8, 10));
+    const modeAt = (h, dt) => M.modeOf({ seg_type: "A" }, h.t + dt, h.rh, +h.time.slice(8, 10), h.pty > 0);
     const days = {};
     hrs.forEach((h) => {
       const d = h.time.slice(0, 8);
@@ -738,7 +788,7 @@
       prevDay = d;
       return `${dayLbl}<span class="fc-h${h.interp ? " interp" : ""}" style="background:${MODE[mode].color}" title="${+d.slice(6, 8)}일 ${hh}시 · ${fmt(h.t, 0, "℃")} · 습도 ${fmt(h.rh, 0, "%")} · ${MODE[mode].label}${h.interp ? " (3시간 간격 예보 사이 보간)" : ""}">${hh % 3 === 0 ? hh : ""}</span>`;
     }).join("");
-    $("fc-legend").innerHTML = ["mist", "flush", "night", "off"].map((m) => `<span><i style="background:${MODE[m].color}"></i>${MODE[m].label}</span>`).join("")
+    $("fc-legend").innerHTML = ["mist", "flush", "night", "rain", "off"].map((m) => `<span><i style="background:${MODE[m].color}"></i>${MODE[m].label}</span>`).join("")
       + (hrs.some((h) => h.interp) ? `<span><i class="interp" style="background:${MODE.off.color}"></i>흐린 칸: 3시간 간격 예보 사이를 보간한 시간</span>` : "");
     const m3 = (l) => (l / 1000).toFixed(1);
     const E = Object.entries(days);
@@ -914,6 +964,7 @@
 
     initAssume();
     vulnInit();
+    initSens();
     try { computePriority(); } catch (e) { console.warn("우선순위 계산 실패", e); }
     $("prio-sort").onclick = () => { S.sortPrio = !S.sortPrio; $("prio-sort").classList.toggle("on", S.sortPrio); renderTable(); };
     S.ana = "none";
