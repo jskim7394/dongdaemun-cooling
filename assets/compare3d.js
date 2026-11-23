@@ -108,7 +108,13 @@
       G.alpha[i] = G.bmask[i] ? 0 : Math.round(215 * f);
     }
 
-    // 미스트 폴대 위치 = 35m 이내 지상식 소화전을 보행축 선에 투영한 지점 (8m 안 중복 제거)
+    const inMask = (x, y) => {
+      const px = Math.floor((x - x0) / RES), py = ny - 1 - Math.floor((y - y0) / RES);
+      return px < 0 || px >= nx || py < 0 || py >= ny ? 0 : G.bmask[py * nx + px];
+    };
+    // 미스트 폴대 위치: 35m 안 지상식 소화전 쪽 보도.
+    // 보행축 선(도로 중심 기준선)에서 소화전 방향으로 나가되, 건물이 먼저 나오면 건물 면에서 2.5m 앞(보도),
+    // 소화전이 보도에 있으면 소화전 바로 옆에 둔다. 기준선에서 20m를 넘지 않게 하고 8m 안 중복은 제거한다.
     G.noz = [];
     const project = (px, py, line) => {
       let best = null, bd = 1e9;
@@ -124,15 +130,21 @@
       if (s.seg_type === "D") return;
       const line = s.coords.map(([la, lo]) => toXY(la, lo));
       (s.nozzles || []).forEach(([lat, lon]) => {
-        const [x, y] = project(...toXY(lat, lon), line);
+        const [hx, hy] = toXY(lat, lon);
+        const [qx, qy] = project(hx, hy, line);
+        const dh = Math.hypot(hx - qx, hy - qy);
+        let x = qx, y = qy;
+        if (dh > 0.5) {
+          const vx = (hx - qx) / dh, vy = (hy - qy) / dh;
+          let db = Infinity;
+          for (let t = 1; t <= Math.min(dh, 30); t += 0.5) if (inMask(qx + vx * t, qy + vy * t)) { db = t; break; }
+          const off = Math.max(0, Math.min(dh, db - 2.5, 20));
+          x = qx + vx * off; y = qy + vy * off;
+        }
         if (G.noz.some((n) => Math.hypot(n.x - x, n.y - y) < 8)) return;
         G.noz.push({ x, y, seg: si });
       });
     });
-    const inMask = (x, y) => {
-      const px = Math.floor((x - x0) / RES), py = ny - 1 - Math.floor((y - y0) / RES);
-      return px < 0 || px >= nx || py < 0 || py >= ny ? 0 : G.bmask[py * nx + px];
-    };
     // 3차원 점: 보행축 25m 안, 건물 밖. 노즐 영향권이면 노즐 목록을 붙인다
     const cells = new Map();
     for (let py = 0; py < ny; py += Math.round(PT / RES) || 1) for (let px = 0; px < nx; px += Math.round(PT / RES) || 1) {
