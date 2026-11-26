@@ -1,6 +1,6 @@
 {
  "service": "IotVdata017",
- "total": 750593,
+ "total": 775803,
  "keys": [
   "MDL_NO",
   "SN",
@@ -72,16 +72,16 @@
  "sample": {
   "MDL_NO": "SDOT001",
   "SN": "V02Q2300007",
-  "MSRMT_HR": "2026-11-24_23:07:00",
+  "MSRMT_HR": "2026-11-25_23:07:00",
   "RGN": "main_street",
   "CGG": "Eunpyeong-gu",
   "DONG": "Jingwan-dong",
   "MAX_TP": "-40.0",
   "AVG_TP": "-40.0",
   "MIN_TP": "-40.0",
-  "MAX_HUM": "78.",
-  "AVG_HUM": "75.",
-  "MIN_HUM": "72.",
+  "MAX_HUM": "100",
+  "AVG_HUM": "99.",
+  "MIN_HUM": "96.",
   "MAX_WSPD": "",
   "AVG_WSPD": "",
   "MIN_WSPD": "",
@@ -127,6 +127,6 @@
   "MAX_OZON": "",
   "AVG_OZON": "",
   "MIN_OZON": "",
-  "REG_DT": "2026-11-24 23:08:15"
+  "REG_DT": "2026-11-25 23:08:17"
  }
 }
